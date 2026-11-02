@@ -1,13 +1,16 @@
-
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://eventza-backend-7uxv.onrender.com/api",
-  timeout: 15000,
+  baseURL:
+    process.env.REACT_APP_API_URL ||
+    "https://eventza-backend-7uxv.onrender.com/api",
+  timeout: 30000,
+  headers: {
+    Accept: "application/json",
+  },
 });
 
-// ================= JWT INTERCEPTOR =================
-
+// JWT interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -34,48 +37,37 @@ api.interceptors.request.use(
 
 // ================= USER APIs =================
 
-// Register User
 export const registerUser = (data) =>
   api.post("/register", {
     name: data.name?.trim(),
     email: data.email?.trim().toLowerCase(),
     password: data.password,
-    phone: data.phone,
-    address: data.address,
+    phone: data.phone || "",
+    address: data.address || "",
   });
 
-// ================= OTP LOGIN APIs =================
-
-// Login and send OTP
 export const loginUser = (data) =>
-  api.post("/auth/login", {
+  api.post("/login", {
     email: data.email?.trim().toLowerCase(),
     password: data.password,
   });
 
-// Verify OTP
-export const verifyLoginOtp = (data) =>
-  api.post("/auth/verify-login-otp", {
-    email: data.email?.trim().toLowerCase(),
-    otp: String(data.otp || "").trim(),
-  });
+export const getUser = () => api.get("/users");
 
-// Resend OTP
-export const resendLoginOtp = (data) =>
-  api.post("/auth/resend-login-otp", {
-    email: data.email?.trim().toLowerCase(),
-  });
+export const getSingleUser = (id) =>
+  api.get(`/users/${encodeURIComponent(id)}`);
 
-// Get Users
-export const getUser = () => api.get("/get-user");
+export const updateUser = (id, data) =>
+  api.put(`/users/${encodeURIComponent(id)}`, data);
+
+export const deleteUser = (id) =>
+  api.delete(`/users/${encodeURIComponent(id)}`);
 
 // ================= EVENT APIs =================
 
-export const getEvents = () =>
-  api.get("/events");
+export const getEvents = () => api.get("/events");
 
-export const createEvent = (data) =>
-  api.post("/events", data);
+export const createEvent = (data) => api.post("/events", data);
 
 export const createEventWithImage = (formData) =>
   api.post("/events", formData);
@@ -91,8 +83,7 @@ export const removeEvent = (id) =>
 
 // ================= CATEGORY APIs =================
 
-export const getCategories = () =>
-  api.get("/categories");
+export const getCategories = () => api.get("/categories");
 
 export const addCategory = (data) =>
   api.post("/categories", data);
@@ -105,8 +96,7 @@ export const removeCategory = (id) =>
 
 // ================= BOOKING APIs =================
 
-export const getBookings = () =>
-  api.get("/bookings");
+export const getBookings = () => api.get("/bookings");
 
 export const getBookingById = (id) =>
   api.get(`/bookings/${encodeURIComponent(id)}`);
@@ -125,36 +115,26 @@ export const removeBooking = (id) =>
 
 // ================= PAYMENT APIs =================
 
-// Get all payments
-export const getPayments = () =>
-  api.get("/payments");
+export const getPayments = () => api.get("/payments");
 
-// Get payment by ID
 export const getPaymentById = (id) =>
   api.get(`/payments/${encodeURIComponent(id)}`);
 
-// Create payment
 export const addPayment = (data) =>
   api.post("/payments", data);
 
-// Update payment
 export const updatePayment = (id, data) =>
   api.put(`/payments/${encodeURIComponent(id)}`, data);
 
-// Delete payment
 export const removePayment = (id) =>
   api.delete(`/payments/${encodeURIComponent(id)}`);
 
-// Get booking payments
 export const getBookingPayments = (bookingId) =>
   api.get(
     `/payments/bookings/${encodeURIComponent(bookingId)}/payments`
   );
 
-// Get logged-in user's payments
 export const getMyPayments = () =>
   api.get("/payments/my-payments");
-
-// ================= DEFAULT EXPORT =================
 
 export default api;

@@ -1,11 +1,6 @@
-
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  loginUser,
-  verifyLoginOtp,
-  resendLoginOtp,
-} from "../Api";
+import { loginUser } from "../Api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,73 +8,14 @@ const Login = () => {
   const [role, setRole] = useState("user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpStep, setOtpStep] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resendSeconds, setResendSeconds] = useState(60);
 
   const [fieldErrors, setFieldErrors] = useState({
     email: "",
     password: "",
   });
 
-  useEffect(() => {
-    if (!otpStep || resendSeconds <= 0) return;
-
-    const timer = setTimeout(() => {
-      setResendSeconds((seconds) => Math.max(0, seconds - 1));
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [otpStep, resendSeconds]);
-
-  // Save authenticated session
-  const saveSession = (backendUser, token) => {
-    const backendRole = String(
-      backendUser.role || ""
-    ).trim().toLowerCase();
-
-    const userId = backendUser._id || backendUser.id || "";
-
-    const loggedInUser = {
-      _id: userId,
-      id: userId,
-      name: backendUser.name || "User",
-      email: backendUser.email || email.trim().toLowerCase(),
-      phone: backendUser.phone || "",
-      address: backendUser.address || "",
-      role: backendRole,
-    };
-
-    localStorage.setItem("token", token);
-    localStorage.setItem(
-      "loggedInUser",
-      JSON.stringify(loggedInUser)
-    );
-    localStorage.setItem("user", JSON.stringify(loggedInUser));
-    localStorage.setItem("isLoggedIn", "true");
-
-    if (backendRole === "admin") {
-      localStorage.setItem("admin", "true");
-      localStorage.setItem(
-        "adminProfile",
-        JSON.stringify(loggedInUser)
-      );
-    } else {
-      localStorage.removeItem("admin");
-      localStorage.removeItem("adminProfile");
-    }
-
-    window.dispatchEvent(new Event("authChanged"));
-
-    navigate(
-      backendRole === "admin" ? "/Adminpanel" : "/",
-      { replace: true }
-    );
-  };
-
-  // STEP 1: Login with email and password
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -89,8 +25,13 @@ const Login = () => {
       password: "",
     };
 
-    if (!email.trim()) errors.email = "Email is required";
-    if (!password) errors.password = "Password is required";
+    if (!email.trim()) {
+      errors.email = "Email is required";
+    }
+
+    if (!password) {
+      errors.password = "Password is required";
+    }
 
     setFieldErrors(errors);
 
@@ -115,108 +56,26 @@ const Login = () => {
         return;
       }
 
-      // ADMIN: Skip OTP only when backend authenticates admin
-      // and explicitly returns requiresOtp: false.
-      if (result.requiresOtp === false) {
-        const payload = result.data ?? result;
-
-        const token =
-          result.token ||
-          payload.token ||
-          result.accessToken ||
-          payload.accessToken;
-
-        const backendUser =
-          result.user ||
-          payload.user;
-
-        if (!token || !backendUser) {
-          setError("Token or user details missing from backend.");
-          return;
-        }
-
-        const backendRole = String(
-          backendUser.role || ""
-        ).trim().toLowerCase();
-
-        if (backendRole !== "admin") {
-          setError("Invalid account role.");
-          return;
-        }
-
-        if (role !== "admin") {
-          setError("Please select the correct login role.");
-          return;
-        }
-
-        saveSession(backendUser, token);
-        return;
-      }
-
-      // NORMAL USER: Continue with OTP verification
-      setOtp("");
-      setOtpStep(true);
-      setResendSeconds(60);
-      setError(result.message || "OTP sent to your email.");
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Unable to start login. Please check the backend."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // STEP 2: Verify OTP and login
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!/^\d{6}$/.test(otp.trim())) {
-      setError("Please enter the 6-digit OTP.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await verifyLoginOtp({
-        email: email.trim().toLowerCase(),
-        otp: otp.trim(),
-      });
-
-      const result = response?.data;
-
-      if (
-        !result ||
-        result.status === 0 ||
-        result.success === false
-      ) {
-        setError(result?.message || "OTP verification failed.");
-        return;
-      }
-
-      const payload = result.data ?? result;
+      // Backend returns { status, message, token, user, data }
+      const backendUser =
+        result.user ||
+        result.data?.user ||
+        result.data;
 
       const token =
         result.token ||
-        payload.token ||
-        result.accessToken ||
-        payload.accessToken;
-
-      const backendUser =
-        result.user ||
-        payload.user ||
-        (payload._id || payload.id ? payload : null);
+        result.data?.token ||
+        result.accessToken;
 
       if (!token || !backendUser) {
-        setError("Token or user details missing from backend.");
+        setError(
+          "Login response is missing token or user details. Please check backend response."
+        );
         return;
       }
 
       const backendRole = String(
-        backendUser.role || "user"
+        backendUser.role || ""
       ).trim().toLowerCase();
 
       if (!["user", "admin"].includes(backendRole)) {
@@ -224,55 +83,78 @@ const Login = () => {
         return;
       }
 
+      // Check selected role against database role
       if (backendRole !== role) {
         setError(
           role === "admin"
             ? "This account is not an admin account."
-            : "Please select the correct login role."
+            : "This account is not a user account. Please select Admin."
         );
         return;
       }
 
-      saveSession(backendUser, token);
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "OTP verification failed. Please try again."
+      const userId = backendUser._id || backendUser.id || "";
+
+      const loggedInUser = {
+        _id: userId,
+        id: userId,
+        name: backendUser.name || "User",
+        email:
+          backendUser.email || email.trim().toLowerCase(),
+        phone: backendUser.phone || "",
+        address: backendUser.address || "",
+        image: backendUser.image || "",
+        role: backendRole,
+      };
+
+      // Save login session
+      localStorage.setItem("token", token);
+      localStorage.setItem(
+        "loggedInUser",
+        JSON.stringify(loggedInUser)
       );
-    } finally {
-      setLoading(false);
-    }
-  };
+      localStorage.setItem(
+        "user",
+        JSON.stringify(loggedInUser)
+      );
+      localStorage.setItem("isLoggedIn", "true");
 
-  // STEP 3: Resend OTP
-  const handleResendOtp = async () => {
-    setError("");
-
-    try {
-      setLoading(true);
-
-      const response = await resendLoginOtp({
-        email: email.trim().toLowerCase(),
-      });
-
-      const result = response?.data;
-
-      if (
-        !result ||
-        result.status === 0 ||
-        result.success === false
-      ) {
-        setError(result?.message || "Could not resend OTP.");
-        return;
+      if (backendRole === "admin") {
+        localStorage.setItem("admin", "true");
+        localStorage.setItem(
+          "adminProfile",
+          JSON.stringify(loggedInUser)
+        );
+      } else {
+        localStorage.removeItem("admin");
+        localStorage.removeItem("adminProfile");
       }
 
-      setOtp("");
-      setResendSeconds(60);
-      setError(result.message || "New OTP sent.");
-    } catch (err) {
-      setError(
-        err.response?.data?.message || "Could not resend OTP."
+      window.dispatchEvent(new Event("authChanged"));
+
+      // Redirect according to database role
+      navigate(
+        backendRole === "admin" ? "/Adminpanel" : "/",
+        { replace: true }
       );
+    } catch (err) {
+      console.error(
+        "Login error:",
+        err.response?.data || err
+      );
+
+      if (err.response) {
+        setError(
+          err.response.data?.message ||
+            `Login failed. Server returned ${err.response.status}.`
+        );
+      } else if (err.request) {
+        setError(
+          "Cannot connect to the Eventzaa server. Please check your internet connection or backend deployment."
+        );
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -288,33 +170,29 @@ const Login = () => {
           </div>
         </div>
 
-        <h2>{otpStep ? "Verify OTP" : "Welcome Back"}</h2>
+        <h2>Welcome Back</h2>
 
         <p className="subtitle">
-          {otpStep
-            ? `Enter the OTP sent to ${email}`
-            : "Login to your Eventzaa account"}
+          Login to your Eventzaa account
         </p>
 
-        {!otpStep && (
-          <div className="role-buttons">
-            {["user", "admin"].map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={
-                  role === item ? "role-btn active" : "role-btn"
-                }
-                onClick={() => {
-                  setRole(item);
-                  setError("");
-                }}
-              >
-                {item === "user" ? "User" : "Admin"}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="role-buttons">
+          {["user", "admin"].map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={
+                role === item ? "role-btn active" : "role-btn"
+              }
+              onClick={() => {
+                setRole(item);
+                setError("");
+              }}
+            >
+              {item === "user" ? "User" : "Admin"}
+            </button>
+          ))}
+        </div>
 
         {error && (
           <div className="error-box" role="alert">
@@ -322,135 +200,85 @@ const Login = () => {
           </div>
         )}
 
-        {!otpStep ? (
-          <form onSubmit={handleLogin} noValidate>
-            <div className="input-group">
-              <label htmlFor="login-email">Email</label>
-              <input
-                id="login-email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                autoComplete="username"
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setFieldErrors((prev) => ({
-                    ...prev,
-                    email: "",
-                  }));
-                  setError("");
-                }}
-              />
-              {fieldErrors.email && (
-                <span className="field-error">
-                  {fieldErrors.email}
-                </span>
-              )}
-            </div>
+        <form onSubmit={handleLogin} noValidate>
+          <div className="input-group">
+            <label htmlFor="login-email">Email</label>
 
-            <div className="input-group">
-              <label htmlFor="login-password">Password</label>
-              <input
-                id="login-password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                autoComplete="current-password"
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setFieldErrors((prev) => ({
-                    ...prev,
-                    password: "",
-                  }));
-                  setError("");
-                }}
-              />
-              {fieldErrors.password && (
-                <span className="field-error">
-                  {fieldErrors.password}
-                </span>
-              )}
-            </div>
+            <input
+              id="login-email"
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              autoComplete="username"
+              onChange={(e) => {
+                setEmail(e.target.value);
 
-            <div className="forgot-row">
-              <button
-                type="button"
-                className="forgot-btn"
-                onClick={() => navigate("/forgot-password")}
-              >
-                Forgot Password?
-              </button>
-            </div>
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  email: "",
+                }));
 
+                setError("");
+              }}
+            />
+
+            {fieldErrors.email && (
+              <span className="field-error">
+                {fieldErrors.email}
+              </span>
+            )}
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="login-password">Password</label>
+
+            <input
+              id="login-password"
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              autoComplete="current-password"
+              onChange={(e) => {
+                setPassword(e.target.value);
+
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  password: "",
+                }));
+
+                setError("");
+              }}
+            />
+
+            {fieldErrors.password && (
+              <span className="field-error">
+                {fieldErrors.password}
+              </span>
+            )}
+          </div>
+
+          <div className="forgot-row">
             <button
-              type="submit"
-              className="login-submit"
-              disabled={loading}
+              type="button"
+              className="forgot-btn"
+              onClick={() => navigate("/forgot-password")}
             >
-              {loading ? "Logging in..." : "Login"}
+              Forgot Password?
             </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} noValidate>
-            <div className="input-group">
-              <label htmlFor="login-otp">Email OTP</label>
-              <input
-                id="login-otp"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="Enter 6-digit OTP"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => {
-                  setOtp(
-                    e.target.value.replace(/\D/g, "").slice(0, 6)
-                  );
-                  setError("");
-                }}
-              />
-            </div>
+          </div>
 
-            <button
-              type="submit"
-              className="login-submit"
-              disabled={loading}
-            >
-              {loading ? "Verifying..." : "Verify OTP & Login"}
-            </button>
-
-            <div className="forgot-row" style={{ marginTop: 16 }}>
-              {resendSeconds > 0 ? (
-                <span>Resend OTP in {resendSeconds}s</span>
-              ) : (
-                <button
-                  type="button"
-                  className="forgot-btn"
-                  onClick={handleResendOtp}
-                  disabled={loading}
-                >
-                  Resend OTP
-                </button>
-              )}
-
-              <button
-                type="button"
-                className="forgot-btn"
-                style={{ marginLeft: 12 }}
-                onClick={() => {
-                  setOtpStep(false);
-                  setOtp("");
-                  setError("");
-                }}
-              >
-                Back to Login
-              </button>
-            </div>
-          </form>
-        )}
+          <button
+            type="submit"
+            className="login-submit"
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </form>
 
         <div className="signup-text">
           Don't have an account?
+
           <button
             type="button"
             onClick={() => navigate("/Signup")}

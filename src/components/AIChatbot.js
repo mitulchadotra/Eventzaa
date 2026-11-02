@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 
-const API_URL = "http://localhost:5000/api/ai/user-chat";
+const API_URL = "https://eventza-backend-7uxv.onrender.com/api/ai/user-chat";
 
 export default function AIChatbot() {
   const [open, setOpen] = useState(false);

@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const API_URL = (
-  process.env.REACT_APP_API_URL || "http://localhost:5000/api"
+  process.env.REACT_APP_API_URL || "https://eventza-backend-7uxv.onrender.com/api"
 ).replace(/\/+$/, "");
 
 const API_ORIGIN = API_URL.replace(/\/api\/?$/, "");

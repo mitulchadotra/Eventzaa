@@ -11,7 +11,7 @@ const Home = () => {
     const token = localStorage.getItem("token");
 
     try {
-      const response = await fetch("http://localhost:5000/api/get-user", {
+      const response = await fetch("https://eventza-backend-7uxv.onrender.com/api/get-user", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,

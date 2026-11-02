@@ -1,6 +1,6 @@
 
 import React, { lazy, Suspense } from "react";
-import { Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 
 import AuthRoute from "./AuthRoute";
 import "./App.css";
@@ -49,11 +49,13 @@ const App = () => {
         {!isPaymentPage && <Header />}
 
         <Routes>
-          {/* Public pages */}
+          {/* Public Pages */}
+
           <Route path="/Login" element={<Login />} />
           <Route path="/Signup" element={<Signup />} />
 
-          {/* Protected user pages */}
+          {/* Protected User Pages */}
+
           <Route
             path="/"
             element={
@@ -135,7 +137,8 @@ const App = () => {
             }
           />
 
-          {/* Admin-only pages */}
+          {/* Admin Only Pages */}
+
           <Route
             path="/Adminpanel"
             element={
@@ -163,7 +166,8 @@ const App = () => {
             }
           />
 
-          {/* Unknown routes */}
+          {/* 404 Page */}
+
           <Route
             path="*"
             element={
@@ -178,8 +182,9 @@ const App = () => {
         </Routes>
 
         {!isAdminPanel && <Footer />}
+
+        <AIChatbot />
       </Suspense>
-    <AIChatbot />
     </>
   );
 };

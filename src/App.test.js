@@ -63,7 +63,7 @@ test('signup, login, and loads the current user from Home on button click', asyn
 
   expect(screen.getByRole('button', { name: 'Load My Profile' })).toBeInTheDocument();
   expect(window.fetch).not.toHaveBeenCalledWith(
-    'http://localhost:5000/api/get-user',
+    'https://eventza-backend-7uxv.onrender.com/api/get-user',
     expect.anything()
   );
 
@@ -72,7 +72,7 @@ test('signup, login, and loads the current user from Home on button click', asyn
   expect(await screen.findByText('Ava Example')).toBeInTheDocument();
   expect(localStorage.getItem('token')).toBe('user-token');
   expect(window.fetch).toHaveBeenCalledWith(
-    'http://localhost:5000/api/get-user',
+    'https://eventza-backend-7uxv.onrender.com/api/get-user',
     expect.objectContaining({
       method: 'GET',
       headers: { Authorization: 'Bearer user-token' },

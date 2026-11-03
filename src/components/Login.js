@@ -6,362 +6,447 @@ import api from "../Api";
 const Login = () => {
   const navigate = useNavigate();
 
-  const [role, setRole] = useState("user");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    role: "user",
+  });
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // ========================================
-  // SAVE LOGIN DATA
-  // ========================================
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
 
-  const saveLoginData = (data) => {
-    if (!data.token || !data.user) {
-      throw new Error("Login response is missing user or token.");
-    }
-
-    const user = data.user;
-
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("loggedInUser", JSON.stringify(user));
-    localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("isLoggedIn", "true");
-
-    if (user.role === "admin") {
-      localStorage.setItem("admin", JSON.stringify(user));
-      localStorage.setItem("adminProfile", JSON.stringify(user));
-
-      navigate("/Adminpanel", { replace: true });
-    } else {
-      localStorage.removeItem("admin");
-      localStorage.removeItem("adminProfile");
-
-      navigate("/", { replace: true });
-    }
+    setError("");
   };
-
-  // ========================================
-  // DIRECT LOGIN
-  // ========================================
 
   const handleLogin = async (e) => {
     e.preventDefault();
-
     setError("");
-    setSuccess("");
 
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      setError("Email is required.");
+    if (!formData.email.trim() || !formData.password) {
+      setError("Please enter email and password.");
       return;
     }
-
-    if (!password) {
-      setError("Password is required.");
-      return;
-    }
-
-    setLoading(true);
 
     try {
+      setLoading(true);
+
       const response = await api.post("/auth/login", {
-        email: normalizedEmail,
-        password,
-        role,
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        role: formData.role,
       });
 
       const data = response.data;
 
-      if (
-        data.status !== 1 ||
-        data.success !== true ||
-        data.requiresOtp !== false
-      ) {
-        throw new Error(data.message || "Login failed.");
+      if (!data.success || !data.token) {
+        setError(data.message || "Login failed.");
+        return;
       }
 
-      if (data.user?.role !== role) {
-        throw new Error("Account role does not match selected role.");
+      // Save authentication details
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("isLoggedIn", "true");
+
+      if (data.user) {
+        localStorage.setItem(
+          "loggedInUser",
+          JSON.stringify(data.user)
+        );
+
+        localStorage.setItem(
+          "user",
+          JSON.stringify(data.user)
+        );
       }
 
-      saveLoginData(data);
+      // Save admin details
+      if (formData.role === "admin") {
+        localStorage.setItem(
+          "admin",
+          JSON.stringify(data.user)
+        );
 
+        localStorage.setItem(
+          "adminProfile",
+          JSON.stringify(data.user)
+        );
+      }
+
+      window.dispatchEvent(new Event("authChanged"));
+
+      // Redirect according to role
+      if (formData.role === "admin") {
+        navigate("/Adminpanel", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (err) {
       console.error("Login error:", err);
 
       setError(
         err.response?.data?.message ||
-        err.message ||
-        "Unable to login. Please try again."
+        "Unable to login. Please check your email and password."
       );
-
     } finally {
       setLoading(false);
     }
   };
 
-  // ========================================
-  // UI
-  // ========================================
-
   return (
-    <div className="eventzaa-login-page">
-
+    <>
       <style>{`
         * {
           box-sizing: border-box;
         }
 
-        .eventzaa-login-page {
+        .login-page {
           min-height: 100vh;
+          width: 100%;
           display: flex;
           justify-content: center;
           align-items: center;
-          padding: 25px 15px;
+          padding: 35px 20px;
           background:
-            radial-gradient(circle at top left, #e9e5ff, transparent 40%),
-            linear-gradient(135deg, #f5f3ff, #eef2ff);
+            radial-gradient(circle at 10% 10%, rgba(255,255,255,0.2), transparent 30%),
+            linear-gradient(135deg, #4c1d95 0%, #6d28d9 45%, #9333ea 100%);
           font-family: Arial, sans-serif;
         }
 
         .login-card {
           width: 100%;
           max-width: 440px;
-          background: #fff;
-          padding: 38px 35px;
-          border-radius: 20px;
-          box-shadow: 0 15px 50px rgba(45,35,100,.12);
+          padding: 42px 38px;
+          border-radius: 22px;
+          background: #ffffff;
+          box-shadow: 0 20px 60px rgba(25, 10, 55, 0.28);
+          animation: loginFade 0.5s ease;
+        }
+
+        @keyframes loginFade {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .login-logo {
-          width: 65px;
-          height: 65px;
-          margin: 0 auto 15px;
+          width: 68px;
+          height: 68px;
+          margin: 0 auto 17px;
           display: flex;
-          align-items: center;
           justify-content: center;
-          border-radius: 18px;
+          align-items: center;
+          border-radius: 20px;
           color: white;
-          font-size: 27px;
+          font-size: 30px;
           font-weight: 800;
-          background: linear-gradient(135deg,#704cff,#a15bff);
+          background: linear-gradient(135deg, #6d28d9, #a855f7);
+          box-shadow: 0 8px 20px rgba(109, 40, 217, 0.25);
         }
 
-        .login-title {
+        .login-heading {
           text-align: center;
-          font-size: 28px;
-          color: #20213a;
-          margin: 0 0 8px;
-          font-weight: 750;
+          margin-bottom: 30px;
         }
 
-        .login-subtitle {
-          text-align: center;
-          color: #77778b;
+        .login-heading h2 {
+          margin: 0 0 10px;
+          color: #24133f;
+          font-size: 29px;
+          font-weight: 800;
+        }
+
+        .login-heading p {
+          margin: 0;
+          color: #77718a;
           font-size: 14px;
-          margin-bottom: 28px;
         }
 
         .login-group {
-          margin-bottom: 19px;
+          margin-bottom: 20px;
         }
 
         .login-group label {
           display: block;
+          margin-bottom: 9px;
+          color: #302044;
           font-size: 14px;
-          font-weight: 600;
-          color: #33334c;
-          margin-bottom: 8px;
+          font-weight: 700;
         }
 
-        .login-input,
-        .login-select {
+        .login-input-wrapper {
+          position: relative;
+        }
+
+        .login-input {
           width: 100%;
-          padding: 13px 14px;
-          border: 1px solid #dedeea;
+          height: 49px;
+          padding: 0 15px;
+          border: 1px solid #ded6ec;
           border-radius: 10px;
-          font-size: 14px;
           outline: none;
-          background: #fff;
-          color: #25253b;
+          background: #faf9fd;
+          color: #282033;
+          font-size: 14px;
+          transition: 0.3s;
         }
 
-        .login-input:focus,
-        .login-select:focus {
-          border-color: #7954ff;
-          box-shadow: 0 0 0 3px rgba(121,84,255,.10);
+        .login-input:focus {
+          border-color: #7c3aed;
+          background: #ffffff;
+          box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+        }
+
+        .login-input::placeholder {
+          color: #a29aaf;
+        }
+
+        .password-input {
+          padding-right: 75px;
+        }
+
+        .password-toggle {
+          position: absolute;
+          top: 50%;
+          right: 13px;
+          transform: translateY(-50%);
+          border: none;
+          background: transparent;
+          color: #7c3aed;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .login-forgot {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: -7px;
+          margin-bottom: 21px;
+        }
+
+        .login-forgot a {
+          color: #7c3aed;
+          font-size: 13px;
+          font-weight: 600;
+          text-decoration: none;
+        }
+
+        .login-forgot a:hover {
+          text-decoration: underline;
         }
 
         .login-button {
           width: 100%;
-          padding: 14px;
+          height: 50px;
           border: none;
           border-radius: 10px;
-          background: linear-gradient(135deg,#704cff,#925bff);
-          color: white;
-          font-size: 15px;
+          background: linear-gradient(135deg, #6d28d9, #9333ea);
+          color: #ffffff;
+          font-size: 16px;
           font-weight: 700;
           cursor: pointer;
-          margin-top: 5px;
+          transition: 0.3s;
+          box-shadow: 0 7px 17px rgba(109, 40, 217, 0.25);
+        }
+
+        .login-button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 22px rgba(109, 40, 217, 0.35);
         }
 
         .login-button:disabled {
-          opacity: .65;
+          opacity: 0.65;
           cursor: not-allowed;
+          transform: none;
         }
 
         .login-error {
-          padding: 11px 13px;
+          padding: 12px 14px;
+          margin-bottom: 20px;
           border-radius: 9px;
-          font-size: 13px;
-          margin-bottom: 17px;
           background: #fff0f0;
-          color: #d12d36;
-          border: 1px solid #ffd6d6;
-        }
-
-        .login-success {
-          padding: 11px 13px;
-          border-radius: 9px;
+          border: 1px solid #ffd0d0;
+          color: #c62828;
           font-size: 13px;
-          margin-bottom: 17px;
-          background: #edfff4;
-          color: #16834a;
+          line-height: 1.5;
         }
 
         .login-footer {
+          margin-top: 25px;
           text-align: center;
-          margin-top: 23px;
+          color: #77718a;
           font-size: 14px;
-          color: #77778b;
         }
 
         .login-footer a {
-          color: #704cff;
-          text-decoration: none;
-          font-weight: 650;
-        }
-
-        .login-links {
-          text-align: right;
-          margin-bottom: 18px;
-          font-size: 13px;
-        }
-
-        .login-links a {
-          color: #704cff;
+          color: #7c3aed;
+          font-weight: 700;
           text-decoration: none;
         }
 
-        @media(max-width:480px) {
-          .login-card {
-            padding: 30px 22px;
+        .login-footer a:hover {
+          text-decoration: underline;
+        }
+
+        .login-divider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: 25px;
+          color: #aaa2b5;
+          font-size: 12px;
+        }
+
+        .login-divider::before,
+        .login-divider::after {
+          content: "";
+          flex: 1;
+          height: 1px;
+          background: #eee8f5;
+        }
+
+        .login-secure-note {
+          margin-top: 19px;
+          text-align: center;
+          color: #8a8296;
+          font-size: 12px;
+        }
+
+        @media (max-width: 480px) {
+          .login-page {
+            padding: 20px 14px;
           }
 
-          .login-title {
-            font-size: 24px;
+          .login-card {
+            padding: 32px 23px;
+            border-radius: 17px;
+          }
+
+          .login-heading h2 {
+            font-size: 25px;
           }
         }
       `}</style>
 
-      <div className="login-card">
+      <div className="login-page">
+        <div className="login-card">
 
-        <div className="login-logo">E</div>
+          <div className="login-logo">E</div>
 
-        <h1 className="login-title">Welcome Back</h1>
-
-        <p className="login-subtitle">
-          Login to your Eventzaa account
-        </p>
-
-        {error && (
-          <div className="login-error">
-            {error}
+          <div className="login-heading">
+            <h2>Welcome Back!</h2>
+            <p>Login to continue your Eventzaa journey</p>
           </div>
-        )}
 
-        {success && (
-          <div className="login-success">
-            {success}
-          </div>
-        )}
+          <form onSubmit={handleLogin}>
 
-        <form onSubmit={handleLogin}>
+            {error && (
+              <div className="login-error">
+                {error}
+              </div>
+            )}
 
-          <div className="login-group">
-            <label htmlFor="role">Login As</label>
+            <div className="login-group">
+              <label htmlFor="email">Email Address</label>
 
-            <select
-              id="role"
-              className="login-select"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
+              <input
+                id="email"
+                className="login-input"
+                type="email"
+                name="email"
+                placeholder="Enter your email address"
+                value={formData.email}
+                onChange={handleChange}
+                autoComplete="email"
+                required
+              />
+            </div>
+
+            <div className="login-group">
+              <label htmlFor="password">Password</label>
+
+              <div className="login-input-wrapper">
+                <input
+                  id="password"
+                  className="login-input password-input"
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  autoComplete="current-password"
+                  required
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? "HIDE" : "SHOW"}
+                </button>
+              </div>
+            </div>
+
+            <div className="login-group">
+              <label htmlFor="role">Login As</label>
+
+              <select
+                id="role"
+                className="login-input"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+              >
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            <div className="login-forgot">
+              <Link to="/forgot-password">
+                Forgot Password?
+              </Link>
+            </div>
+
+            <button
+              className="login-button"
+              type="submit"
               disabled={loading}
             >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
+              {loading ? "Logging in..." : "Login"}
+            </button>
+
+          </form>
+
+          <div className="login-divider">
+            OR
           </div>
-
-          <div className="login-group">
-            <label htmlFor="email">Email Address</label>
-
-            <input
-              id="email"
-              className="login-input"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <div className="login-group">
-            <label htmlFor="password">Password</label>
-
-            <input
-              id="password"
-              className="login-input"
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <div className="login-links">
-            <Link to="/forgot-password">
-              Forgot Password?
-            </Link>
-          </div>
-
-          <button
-            type="submit"
-            className="login-button"
-            disabled={loading}
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
 
           <div className="login-footer">
             Don't have an account?{" "}
-            <Link to="/Signup">Sign Up</Link>
+            <Link to="/Signup">Create Account</Link>
           </div>
 
-        </form>
+          <div className="login-secure-note">
+            © Eventzaa. All rights reserved.
+          </div>
 
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

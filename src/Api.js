@@ -39,7 +39,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ================= USER REGISTER API =================
+// ================= USER APIs =================
 
 export const registerUser = (data) =>
   api.post("/register", {
@@ -50,13 +50,27 @@ export const registerUser = (data) =>
     address: data.address || "",
   });
 
-// ================= DIRECT LOGIN API (NO OTP) =================
+// ================= OTP LOGIN APIs =================
 
+// Step 1: Verify password and send OTP
 export const loginUser = (data) =>
   api.post("/auth/login", {
     email: data.email?.trim().toLowerCase(),
     password: data.password,
     role: data.role,
+  });
+
+// Step 2: Verify OTP and receive JWT
+export const verifyLoginOtp = (data) =>
+  api.post("/auth/verify-login-otp", {
+    email: data.email?.trim().toLowerCase(),
+    otp: String(data.otp).trim(),
+  });
+
+// Step 3: Resend OTP
+export const resendLoginOtp = (data) =>
+  api.post("/auth/resend-login-otp", {
+    email: data.email?.trim().toLowerCase(),
   });
 
 // ================= USER PROFILE APIs =================

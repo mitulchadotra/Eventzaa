@@ -1,19 +1,22 @@
 
 import axios from "axios";
 
+// ================= API CONFIGURATION =================
+
+const API_BASE_URL = (
+  process.env.REACT_APP_API_URL ||
+  "https://eventza-backend-7uxv.onrender.com/api"
+).replace(/\/+$/, "");
+
 const api = axios.create({
-  baseURL:
-    process.env.REACT_APP_API_URL ||
-    "https://eventza-backend-7uxv.onrender.com/api",
-
-  timeout: 30000,
-
+  baseURL: API_BASE_URL,
+  timeout: 60000,
   headers: {
     Accept: "application/json",
   },
 });
 
-// ================= JWT INTERCEPTOR =================
+// ================= REQUEST INTERCEPTOR =================
 
 api.interceptors.request.use(
   (config) => {
@@ -27,6 +30,7 @@ api.interceptors.request.use(
       delete config.headers.Authorization;
     }
 
+    // Browser should set multipart Content-Type automatically.
     if (
       typeof FormData !== "undefined" &&
       config.data instanceof FormData
@@ -39,7 +43,30 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ================= USER APIs =================
+// ================= RESPONSE INTERCEPTOR =================
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!error.response) {
+      console.error("API CONNECTION ERROR:", {
+        message: error.message,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+      });
+    } else {
+      console.error("API RESPONSE ERROR:", {
+        status: error.response.status,
+        data: error.response.data,
+        url: error.config?.url,
+      });
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// ================= USER REGISTRATION =================
 
 export const registerUser = (data) =>
   api.post("/register", {
@@ -52,7 +79,7 @@ export const registerUser = (data) =>
 
 // ================= OTP LOGIN APIs =================
 
-// Step 1: Verify password and send OTP
+// Step 1: Check email/password and send OTP.
 export const loginUser = (data) =>
   api.post("/auth/login", {
     email: data.email?.trim().toLowerCase(),
@@ -60,14 +87,14 @@ export const loginUser = (data) =>
     role: data.role,
   });
 
-// Step 2: Verify OTP and receive JWT
+// Step 2: Verify OTP and receive JWT.
 export const verifyLoginOtp = (data) =>
   api.post("/auth/verify-login-otp", {
     email: data.email?.trim().toLowerCase(),
     otp: String(data.otp).trim(),
   });
 
-// Step 3: Resend OTP
+// Step 3: Resend OTP.
 export const resendLoginOtp = (data) =>
   api.post("/auth/resend-login-otp", {
     email: data.email?.trim().toLowerCase(),
@@ -164,6 +191,11 @@ export const getBookingPayments = (bookingId) =>
 export const getMyPayments = () =>
   api.get("/payments/my-payments");
 
-// ================= EXPORT AXIOS INSTANCE =================
+// ================= BACKEND CONNECTION TEST =================
+
+export const testBackendConnection = () =>
+  api.get("/");
+
+// ================= EXPORT =================
 
 export default api;

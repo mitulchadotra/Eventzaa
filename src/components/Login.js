@@ -17,10 +17,13 @@ const Login = () => {
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
     setError("");
   };
 
@@ -29,6 +32,7 @@ const Login = () => {
       ...prev,
       role,
     }));
+
     setError("");
   };
 
@@ -36,7 +40,11 @@ const Login = () => {
     e.preventDefault();
     setError("");
 
-    if (!formData.email.trim() || !formData.password) {
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+    const role = formData.role;
+
+    if (!email || !password) {
       setError("Please enter email and password.");
       return;
     }
@@ -44,35 +52,50 @@ const Login = () => {
     try {
       setLoading(true);
 
+      // Backend login API
       const response = await api.post("/auth/login", {
-        email: formData.email.trim().toLowerCase(),
-        password: formData.password,
-        role: formData.role,
+        email,
+        password,
+        role,
       });
 
       const data = response.data;
 
-      if (!data.success || !data.token) {
+      console.log("Login API response:", data);
+
+      // Backend sends status: 1, not necessarily success: true
+      const isSuccessful =
+        data.status === 1 || data.success === true;
+
+      if (!isSuccessful || !data.token || !data.user) {
         setError(data.message || "Login failed.");
         return;
       }
 
+      // Verify selected account role
+      if (data.user.role !== role) {
+        setError(
+          `This account is not registered as ${role}.`
+        );
+        return;
+      }
+
+      // Save authentication details
       localStorage.setItem("token", data.token);
       localStorage.setItem("isLoggedIn", "true");
 
-      if (data.user) {
-        localStorage.setItem(
-          "loggedInUser",
-          JSON.stringify(data.user)
-        );
+      localStorage.setItem(
+        "loggedInUser",
+        JSON.stringify(data.user)
+      );
 
-        localStorage.setItem(
-          "user",
-          JSON.stringify(data.user)
-        );
-      }
+      localStorage.setItem(
+        "user",
+        JSON.stringify(data.user)
+      );
 
-      if (formData.role === "admin") {
+      // Save admin details
+      if (data.user.role === "admin") {
         localStorage.setItem(
           "admin",
           JSON.stringify(data.user)
@@ -82,22 +105,43 @@ const Login = () => {
           "adminProfile",
           JSON.stringify(data.user)
         );
+      } else {
+        localStorage.removeItem("admin");
+        localStorage.removeItem("adminProfile");
       }
 
+      // Notify application about authentication
       window.dispatchEvent(new Event("authChanged"));
 
-      if (formData.role === "admin") {
+      // Redirect according to role
+      if (data.user.role === "admin") {
         navigate("/Adminpanel", { replace: true });
       } else {
         navigate("/", { replace: true });
       }
+
     } catch (err) {
       console.error("Login error:", err);
 
-      setError(
-        err.response?.data?.message ||
-        "Unable to login. Please check your email and password."
-      );
+      const status = err.response?.status;
+      const message = err.response?.data?.message;
+
+      if (status === 401) {
+        setError("Invalid email or password.");
+      } else if (status === 403) {
+        setError(message || "You are not authorized to login.");
+      } else if (status === 404) {
+        setError("Login API route not found. Check backend route.");
+      } else if (status >= 500) {
+        setError(message || "Server error. Please try again.");
+      } else if (!err.response) {
+        setError(
+          "Unable to connect to server. Please check backend URL."
+        );
+      } else {
+        setError(message || "Login failed. Please try again.");
+      }
+
     } finally {
       setLoading(false);
     }
@@ -116,12 +160,10 @@ const Login = () => {
       color: #19152a;
     }
 
-    /* NAVBAR */
-
     .event-navbar {
       width: 100%;
-      height: 80px;
-      background: #ffffff;
+      min-height: 80px;
+      background: #fff;
       border-bottom: 1px solid #eeeaf5;
       display: flex;
       align-items: center;
@@ -140,7 +182,8 @@ const Login = () => {
       flex-shrink: 0;
     }
 
-    .event-brand-icon {
+    .event-brand-icon,
+    .event-card-logo-icon {
       width: 53px;
       height: 53px;
       border-radius: 14px;
@@ -159,22 +202,22 @@ const Login = () => {
       letter-spacing: -0.7px;
     }
 
-    .event-brand-name span {
+    .event-brand-name span,
+    .event-card-logo-name span {
       color: #7048ff;
     }
 
     .event-nav-links {
       display: flex;
       align-items: center;
-      gap: 38px;
+      gap: 30px;
     }
 
     .event-nav-links a {
       text-decoration: none;
       color: #40394e;
       font-size: 15px;
-      font-weight: 500;
-      transition: 0.2s;
+      transition: .2s;
     }
 
     .event-nav-links a:hover {
@@ -198,7 +241,6 @@ const Login = () => {
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: 0.3s;
     }
 
     .event-nav-login {
@@ -213,41 +255,28 @@ const Login = () => {
       border: 1px solid #7048ff;
     }
 
-    .event-nav-login:hover {
-      border-color: #7048ff;
-      color: #7048ff;
-    }
-
-    .event-nav-signup:hover {
-      background: #5c35e8;
-    }
-
-    /* LOGIN BACKGROUND */
-
     .event-login-main {
       min-height: calc(100vh - 80px);
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      padding: 80px 20px 45px;
+      padding: 65px 20px 45px;
       background: linear-gradient(
         110deg,
-        #f8f6ff 0%,
+        #f8f6ff,
         #fbfaff 55%,
-        #ffffff 100%
+        #fff
       );
     }
-
-    /* LOGIN CARD */
 
     .event-login-card {
       width: 100%;
       max-width: 504px;
-      padding: 40px 40px 34px;
-      background: #ffffff;
+      padding: 40px;
+      background: white;
       border-radius: 23px;
-      box-shadow: 0 15px 55px rgba(43, 29, 79, 0.09);
-      animation: eventLoginFade 0.45s ease;
+      box-shadow: 0 15px 55px rgba(43, 29, 79, .09);
+      animation: eventLoginFade .45s ease;
     }
 
     @keyframes eventLoginFade {
@@ -261,8 +290,6 @@ const Login = () => {
       }
     }
 
-    /* CARD LOGO */
-
     .event-card-brand {
       display: flex;
       align-items: center;
@@ -271,31 +298,11 @@ const Login = () => {
       margin-bottom: 28px;
     }
 
-    .event-card-logo-icon {
-      width: 53px;
-      height: 53px;
-      border-radius: 13px;
-      background: linear-gradient(135deg, #7048ff, #9853f7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #ffffff;
-      font-size: 27px;
-      font-weight: 900;
-    }
-
     .event-card-logo-name {
       font-size: 27px;
       font-weight: 900;
-      letter-spacing: -1px;
       color: #15121e;
     }
-
-    .event-card-logo-name span {
-      color: #7048ff;
-    }
-
-    /* HEADING */
 
     .event-login-heading {
       text-align: center;
@@ -315,8 +322,6 @@ const Login = () => {
       margin: 0;
     }
 
-    /* USER ADMIN BUTTONS */
-
     .event-role-buttons {
       display: flex;
       gap: 12px;
@@ -327,13 +332,13 @@ const Login = () => {
       width: 50%;
       height: 48px;
       border: 1px solid #ded7eb;
-      background: #ffffff;
+      background: white;
       color: #554b62;
       border-radius: 10px;
       font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      transition: 0.25s;
+      transition: .25s;
     }
 
     .event-role-btn.active {
@@ -341,13 +346,6 @@ const Login = () => {
       background: #7048ff;
       border-color: #7048ff;
     }
-
-    .event-role-btn:not(.active):hover {
-      border-color: #7048ff;
-      color: #7048ff;
-    }
-
-    /* FORM */
 
     .event-form-group {
       margin-bottom: 22px;
@@ -372,20 +370,15 @@ const Login = () => {
       border: 1px solid #ded8e9;
       border-radius: 10px;
       outline: none;
-      background: #ffffff;
+      background: white;
       color: #282033;
       font-size: 14px;
       font-family: inherit;
-      transition: 0.25s;
     }
 
     .event-login-input:focus {
       border-color: #7048ff;
-      box-shadow: 0 0 0 3px rgba(112, 72, 255, 0.09);
-    }
-
-    .event-login-input::placeholder {
-      color: #a19aaa;
+      box-shadow: 0 0 0 3px rgba(112,72,255,.09);
     }
 
     .event-password-input {
@@ -405,27 +398,17 @@ const Login = () => {
       cursor: pointer;
     }
 
-    /* FORGOT PASSWORD */
-
     .event-forgot {
       display: flex;
       justify-content: flex-end;
-      margin-top: 27px;
-      margin-bottom: 24px;
+      margin: 25px 0 24px;
     }
 
     .event-forgot a {
       text-decoration: none;
       color: #7048ff;
       font-size: 14px;
-      font-weight: 500;
     }
-
-    .event-forgot a:hover {
-      text-decoration: underline;
-    }
-
-    /* ERROR */
 
     .event-login-error {
       padding: 12px;
@@ -438,8 +421,6 @@ const Login = () => {
       line-height: 1.5;
     }
 
-    /* LOGIN BUTTON */
-
     .event-login-submit {
       width: 100%;
       height: 52px;
@@ -450,22 +431,20 @@ const Login = () => {
       font-size: 16px;
       font-weight: 700;
       cursor: pointer;
-      transition: 0.3s;
+      transition: .3s;
     }
 
     .event-login-submit:hover {
       background: #5d35ec;
       transform: translateY(-1px);
-      box-shadow: 0 7px 18px rgba(112, 72, 255, 0.2);
+      box-shadow: 0 7px 18px rgba(112,72,255,.2);
     }
 
     .event-login-submit:disabled {
-      opacity: 0.65;
+      opacity: .65;
       cursor: not-allowed;
       transform: none;
     }
-
-    /* FOOTER */
 
     .event-login-footer {
       text-align: center;
@@ -481,30 +460,18 @@ const Login = () => {
       margin-left: 4px;
     }
 
-    .event-login-footer a:hover {
-      text-decoration: underline;
-    }
-
-    /* MOBILE RESPONSIVE */
-
-    @media (max-width: 900px) {
+    @media(max-width: 900px) {
       .event-navbar {
         padding: 0 4%;
       }
 
       .event-nav-links {
-        gap: 18px;
-      }
-
-      .event-brand-name {
-        font-size: 20px;
+        gap: 15px;
       }
     }
 
-    @media (max-width: 650px) {
+    @media(max-width: 650px) {
       .event-navbar {
-        height: auto;
-        min-height: 75px;
         padding: 12px 18px;
         flex-wrap: wrap;
         gap: 12px;
@@ -523,18 +490,14 @@ const Login = () => {
         order: 3;
         width: 100%;
         justify-content: center;
-        gap: 20px;
-        padding: 8px 0;
+        gap: 17px;
         overflow-x: auto;
+        padding: 8px 0;
       }
 
       .event-nav-links a {
-        font-size: 13px;
+        font-size: 12px;
         white-space: nowrap;
-      }
-
-      .event-nav-actions {
-        gap: 7px;
       }
 
       .event-nav-login,
@@ -560,9 +523,9 @@ const Login = () => {
       }
     }
 
-    @media (max-width: 380px) {
+    @media(max-width: 380px) {
       .event-nav-links {
-        gap: 13px;
+        gap: 12px;
       }
 
       .event-login-card {
@@ -579,9 +542,7 @@ const Login = () => {
     <div className="event-login-page">
       <style>{styles}</style>
 
-      {/* NAVBAR */}
       <header className="event-navbar">
-
         <Link to="/" className="event-brand">
           <div className="event-brand-icon">E</div>
           <div className="event-brand-name">
@@ -601,28 +562,22 @@ const Login = () => {
           <Link to="/Login" className="event-nav-login">
             Login
           </Link>
-
           <Link to="/Signup" className="event-nav-signup">
             Sign up
           </Link>
         </div>
       </header>
 
-      {/* LOGIN SECTION */}
       <main className="event-login-main">
-
         <div className="event-login-card">
 
-          {/* LOGO */}
           <div className="event-card-brand">
             <div className="event-card-logo-icon">E</div>
-
             <div className="event-card-logo-name">
               EVENT<span>ZAA</span>
             </div>
           </div>
 
-          {/* HEADING */}
           <div className="event-login-heading">
             <h2>Welcome Back</h2>
             <p>Login to your Eventzaa account</p>
@@ -630,9 +585,7 @@ const Login = () => {
 
           <form onSubmit={handleLogin}>
 
-            {/* ROLE BUTTONS */}
             <div className="event-role-buttons">
-
               <button
                 type="button"
                 className={`event-role-btn ${
@@ -652,19 +605,15 @@ const Login = () => {
               >
                 Admin
               </button>
-
             </div>
 
-            {/* ERROR MESSAGE */}
             {error && (
               <div className="event-login-error">
                 {error}
               </div>
             )}
 
-            {/* EMAIL */}
             <div className="event-form-group">
-
               <label htmlFor="email">Email</label>
 
               <input
@@ -678,16 +627,12 @@ const Login = () => {
                 autoComplete="email"
                 required
               />
-
             </div>
 
-            {/* PASSWORD */}
             <div className="event-form-group">
-
               <label htmlFor="password">Password</label>
 
               <div className="event-input-wrapper">
-
                 <input
                   id="password"
                   className="event-login-input event-password-input"
@@ -703,23 +648,21 @@ const Login = () => {
                 <button
                   type="button"
                   className="event-password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() =>
+                    setShowPassword(!showPassword)
+                  }
                 >
                   {showPassword ? "HIDE" : "SHOW"}
                 </button>
-
               </div>
-
             </div>
 
-            {/* FORGOT PASSWORD */}
             <div className="event-forgot">
               <Link to="/forgot-password">
                 Forgot Password?
               </Link>
             </div>
 
-            {/* LOGIN BUTTON */}
             <button
               className="event-login-submit"
               type="submit"
@@ -727,17 +670,14 @@ const Login = () => {
             >
               {loading ? "Logging in..." : "Login"}
             </button>
-
           </form>
 
-          {/* SIGNUP FOOTER */}
           <div className="event-login-footer">
             Don't have an account?
             <Link to="/Signup">Sign Up</Link>
           </div>
 
         </div>
-
       </main>
     </div>
   );

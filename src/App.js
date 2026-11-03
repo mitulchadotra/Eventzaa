@@ -1,192 +1,168 @@
 
-import React, { lazy, Suspense } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import dotenv from "dotenv";
+dotenv.config();
 
-import AuthRoute from "./AuthRoute";
-import "./App.css";
+import express from "express";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const Login = lazy(() => import("./components/Login"));
-const Signup = lazy(() => import("./components/Signup"));
+// ================= DATABASE =================
 
-const ManageEvents = lazy(() => import("./components/ManageEvent"));
-const ManageBooking = lazy(() => import("./components/ManageBooking"));
-const AdminManageBooking = lazy(() => import("./components/AdminManageBooking"));
+import connectDB from "./config/db.js";
 
-const UserProfile = lazy(() => import("./components/UserProfile"));
-const MyProfile = lazy(() => import("./components/Myprofile"));
+// ================= ROUTES =================
 
-const Payment = lazy(() => import("./components/Payment"));
-const AdminPanel = lazy(() => import("./components/AdminPanel"));
+import userRouter from "./route/userRoute.js";
+import eventRouter from "./route/eventRoute.js";
+import categoryRouter from "./route/categoryRoute.js";
+import bookingRoute from "./route/bookingRoute.js";
+import authOtpRouter from "./route/authOtpRoute.js";
+import paymentRoute from "./route/paymentRoute.js";
+import aiRoute from "./route/aiRoute.js";
 
-const About = lazy(() => import("./components/About"));
-const Categories = lazy(() => import("./components/Categories"));
-const Events = lazy(() => import("./components/Events"));
-const Contact = lazy(() => import("./components/Contact"));
-const Home = lazy(() => import("./components/Home"));
+// ================= APP CONFIGURATION =================
 
-const Header = lazy(() => import("./components/Header"));
-const Footer = lazy(() => import("./components/Footer"));
+const app = express();
 
-const AIChatbot = lazy(() => import("./components/AIChatbot"));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const App = () => {
-  const location = useLocation();
+const PORT = process.env.PORT || 5000;
 
-  const pathname = location.pathname.toLowerCase();
+// ================= CORS CONFIGURATION =================
 
-  const isPaymentPage = pathname === "/payment";
-  const isAdminPanel = pathname === "/adminpanel";
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://eventzaa-nine.vercel.app",
+];
 
-  return (
-    <>
-      <Suspense
-        fallback={
-          <div className="loading">
-            Loading...
-          </div>
-        }
-      >
-        {!isPaymentPage && <Header />}
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests without an origin (e.g. server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
 
-        <Routes>
-          {/* Public Pages */}
+      // Allow configured frontend URLs and Vercel deployments
+      const isVercelDeployment =
+        /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin);
 
-          <Route path="/Login" element={<Login />} />
-          <Route path="/Signup" element={<Signup />} />
+      if (
+        allowedOrigins.includes(origin) ||
+        isVercelDeployment
+      ) {
+        return callback(null, true);
+      }
 
-          {/* Protected User Pages */}
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+    ],
+  })
+);
 
-          <Route
-            path="/"
-            element={
-              <AuthRoute>
-                <Home />
-              </AuthRoute>
-            }
-          />
+// ================= BODY PARSER =================
 
-          <Route
-            path="/About"
-            element={
-              <AuthRoute>
-                <About />
-              </AuthRoute>
-            }
-          />
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-          <Route
-            path="/Categories"
-            element={
-              <AuthRoute>
-                <Categories />
-              </AuthRoute>
-            }
-          />
+// ================= STATIC IMAGE FOLDER =================
 
-          <Route
-            path="/Events"
-            element={
-              <AuthRoute>
-                <Events />
-              </AuthRoute>
-            }
-          />
+// Images uploaded by Admin will be accessible through:
+// https://eventza-backend-7uxv.onrender.com/uploads/filename.jpg
 
-          <Route
-            path="/Contact"
-            element={
-              <AuthRoute>
-                <Contact />
-              </AuthRoute>
-            }
-          />
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
 
-          <Route
-            path="/profile"
-            element={
-              <AuthRoute>
-                <UserProfile />
-              </AuthRoute>
-            }
-          />
+// ================= HEALTH CHECK =================
 
-          <Route
-            path="/MyProfile"
-            element={
-              <AuthRoute>
-                <MyProfile />
-              </AuthRoute>
-            }
-          />
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Eventzaa Backend is running successfully",
+  });
+});
 
-          <Route
-            path="/ManageBooking"
-            element={
-              <AuthRoute>
-                <ManageBooking />
-              </AuthRoute>
-            }
-          />
+// ================= AUTH TEST =================
 
-          <Route
-            path="/Payment"
-            element={
-              <AuthRoute>
-                <Payment />
-              </AuthRoute>
-            }
-          />
+app.get("/api/auth/test", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Authentication API is working",
+  });
+});
 
-          {/* Admin Only Pages */}
+// ================= API ROUTES =================
 
-          <Route
-            path="/Adminpanel"
-            element={
-              <AuthRoute adminOnly>
-                <AdminPanel />
-              </AuthRoute>
-            }
-          />
+// User routes
+app.use(userRouter);
 
-          <Route
-            path="/ManageEvent"
-            element={
-              <AuthRoute adminOnly>
-                <ManageEvents />
-              </AuthRoute>
-            }
-          />
+// Authentication routes
+// Router should define POST /login for POST /api/auth/login
+app.use("/api/auth", authOtpRouter);
 
-          <Route
-            path="/AdminManageBooking"
-            element={
-              <AuthRoute adminOnly>
-                <AdminManageBooking />
-              </AuthRoute>
-            }
-          />
+// Event routes
+app.use(eventRouter);
 
-          {/* 404 Page */}
+// Category routes
+app.use(categoryRouter);
 
-          <Route
-            path="*"
-            element={
-              <div className="not-found">
-                <h2>404 - Page Not Found</h2>
-                <p>
-                  The page you are looking for does not exist.
-                </p>
-              </div>
-            }
-          />
-        </Routes>
+// Booking routes
+app.use(bookingRoute);
 
-        {!isAdminPanel && <Footer />}
+// Payment routes
+app.use(paymentRoute);
 
-        <AIChatbot />
-      </Suspense>
-    </>
-  );
+// AI Chatbot routes
+app.use(aiRoute);
+
+// ================= 404 HANDLER =================
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+// ================= ERROR HANDLER =================
+
+app.use((err, req, res, next) => {
+  console.error("Backend Error:", err);
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+  });
+});
+
+// ================= SERVER START =================
+
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    app.listen(PORT, () => {
+      console.log(`Eventzaa Backend running on port ${PORT}`);
+      console.log("MongoDB connected successfully");
+      console.log("Uploads folder is configured");
+    });
+  } catch (error) {
+    console.error("Server startup failed:", error);
+    process.exit(1);
+  }
 };
 
-export default App;
+startServer();
+
+export default app;

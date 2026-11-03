@@ -3,31 +3,43 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getEvents } from "../Api";
 
-const API_BASE_URL = "http://localhost:5000";
+// ================= BACKEND IMAGE URL =================
+
+const API_BASE_URL = "https://eventza-backend-7uxv.onrender.com";
 
 const getEventImage = (event) => {
   const imagePath =
     event.imageUrl ||
     event.image ||
     event.imagePath ||
+    event.eventImage ||
     "";
 
   if (!imagePath) return "";
 
+  const path = String(imagePath).trim();
+
+  if (!path) return "";
+
+  // Already complete image URL
   if (
-    imagePath.startsWith("http://") ||
-    imagePath.startsWith("https://") ||
-    imagePath.startsWith("data:")
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("data:")
   ) {
-    return imagePath;
+    return path;
   }
 
-  return `${API_BASE_URL}/${
-    imagePath.startsWith("/")
-      ? imagePath.slice(1)
-      : imagePath
-  }`;
+  // Fix Windows and relative paths
+  const cleanPath = path
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .replace(/^\/+/, "");
+
+  return `${API_BASE_URL}/${cleanPath}`;
 };
+
+// ================= EVENTS COMPONENT =================
 
 const Events = () => {
   const navigate = useNavigate();
@@ -37,6 +49,8 @@ const Events = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+
+  // ================= LOAD EVENTS =================
 
   useEffect(() => {
     let isActive = true;
@@ -65,6 +79,8 @@ const Events = () => {
           setEvents(fetchedEvents);
         }
       } catch (loadError) {
+        console.error("Load events error:", loadError);
+
         if (isActive) {
           setError(
             loadError.response?.data?.message ||
@@ -86,6 +102,8 @@ const Events = () => {
     };
   }, []);
 
+  // ================= CATEGORY FILTER =================
+
   const categories = [
     "All",
     ...new Set(
@@ -94,6 +112,8 @@ const Events = () => {
         .filter(Boolean)
     ),
   ];
+
+  // ================= SEARCH AND FILTER =================
 
   const filteredEvents = events.filter((event) => {
     const title = event.title || event.name || "";
@@ -110,6 +130,8 @@ const Events = () => {
     return searchMatch && categoryMatch;
   });
 
+  // ================= BOOKING =================
+
   const handleBooking = (event) => {
     let loggedUser = null;
 
@@ -121,7 +143,11 @@ const Events = () => {
       loggedUser = null;
     }
 
-    if (!loggedUser || localStorage.getItem("isLoggedIn") === "false") {
+    if (
+      !loggedUser ||
+      !localStorage.getItem("token") ||
+      localStorage.getItem("isLoggedIn") === "false"
+    ) {
       alert("Please login first.");
       navigate("/login");
       return;
@@ -136,6 +162,16 @@ const Events = () => {
     });
   };
 
+  // ================= IMAGE ERROR =================
+
+  const handleImageError = (e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src =
+      "https://placehold.co/800x500?text=Image+Not+Found";
+  };
+
+  // ================= UI =================
+
   return (
     <div className="events-page">
       <div className="events-header">
@@ -144,6 +180,8 @@ const Events = () => {
           Discover amazing events and book your favorite experience
         </p>
       </div>
+
+      {/* SEARCH AND CATEGORY */}
 
       <div className="event-filter">
         <input
@@ -165,6 +203,8 @@ const Events = () => {
         </select>
       </div>
 
+      {/* EVENTS */}
+
       <div className="events-container">
         {loading ? (
           <div className="no-events">
@@ -182,7 +222,9 @@ const Events = () => {
           </div>
         ) : (
           filteredEvents.map((event) => {
-            const title = event.title || event.name || "Untitled Event";
+            const title =
+              event.title || event.name || "Untitled Event";
+
             const imageSrc = getEventImage(event);
 
             return (
@@ -190,16 +232,15 @@ const Events = () => {
                 className="event-card"
                 key={event._id || event.id || title}
               >
+                {/* EVENT IMAGE */}
+
                 <div className="event-image">
                   {imageSrc ? (
                     <img
                       src={imageSrc}
                       alt={title}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src =
-                          "https://placehold.co/800x500?text=Image+Not+Found";
-                      }}
+                      loading="lazy"
+                      onError={handleImageError}
                     />
                   ) : (
                     <div className="no-image">
@@ -214,23 +255,29 @@ const Events = () => {
                   )}
                 </div>
 
+                {/* EVENT DETAILS */}
+
                 <div className="event-content">
                   <h2>{title}</h2>
 
                   <p className="event-description">
-                    {event.description || "Discover this exciting event."}
+                    {event.description ||
+                      "Discover this exciting event."}
                   </p>
 
                   <div className="event-info">
                     <p>
                       📅 <b>Date:</b>{" "}
                       {event.date
-                        ? new Date(event.date).toLocaleDateString("en-IN")
+                        ? new Date(event.date).toLocaleDateString(
+                            "en-IN"
+                          )
                         : "Not specified"}
                     </p>
 
                     <p>
-                      ⏰ <b>Time:</b> {event.time || "Not specified"}
+                      ⏰ <b>Time:</b>{" "}
+                      {event.time || "Not specified"}
                     </p>
 
                     <p>
@@ -244,6 +291,8 @@ const Events = () => {
                       </p>
                     )}
                   </div>
+
+                  {/* PRICE AND BOOKING */}
 
                   <div className="event-bottom">
                     <div className="event-price">
@@ -261,6 +310,8 @@ const Events = () => {
           })
         )}
       </div>
+
+      {/* ================= CSS ================= */}
 
       <style>{`
         * {
@@ -311,6 +362,12 @@ const Events = () => {
           outline: none;
           font-size: 15px;
           background: white;
+        }
+
+        .event-filter input:focus,
+        .event-filter select:focus {
+          border-color: #6c3cff;
+          box-shadow: 0 0 0 3px rgba(108, 60, 255, 0.1);
         }
 
         .event-filter select {
@@ -449,6 +506,7 @@ const Events = () => {
           cursor: pointer;
           font-size: 14px;
           font-weight: 600;
+          transition: 0.3s;
         }
 
         .event-bottom button:hover {

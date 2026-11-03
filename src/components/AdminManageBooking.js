@@ -1,20 +1,43 @@
 import React, { useEffect, useState } from "react";
+import { isValidEmail, isValidText } from "../utils/formValidation";
 
 const AdminManageBooking = () => {
   const [bookings, setBookings] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [dataError, setDataError] = useState("");
 
   // =========================
   // LOAD BOOKINGS
   // =========================
 
   useEffect(() => {
-    const savedBookings = JSON.parse(
-      localStorage.getItem("bookings")
-    ) || [];
+    try {
+      const savedBookings = JSON.parse(
+        localStorage.getItem("bookings") || "[]"
+      );
 
-    setBookings(savedBookings);
+      if (!Array.isArray(savedBookings)) {
+        throw new Error("Saved booking data must be a list.");
+      }
+
+      const validBookings = savedBookings.filter(
+        (booking) =>
+          booking &&
+          typeof booking === "object" &&
+          !Array.isArray(booking)
+      );
+
+      if (validBookings.length !== savedBookings.length) {
+        setDataError("Some invalid booking records were excluded.");
+      }
+
+      setBookings(validBookings);
+    } catch (error) {
+      console.error("Invalid saved booking data:", error);
+      setBookings([]);
+      setDataError("Saved booking details are invalid and could not be loaded.");
+    }
   }, []);
 
   // =========================
@@ -23,6 +46,7 @@ const AdminManageBooking = () => {
 
   const updateBookings = (updatedBookings) => {
     setBookings(updatedBookings);
+    setDataError("");
 
     localStorage.setItem(
       "bookings",
@@ -35,6 +59,20 @@ const AdminManageBooking = () => {
   // =========================
 
   const handleConfirm = (id) => {
+    const selectedBooking = bookings.find((booking) => booking.id === id);
+
+    if (
+      !selectedBooking ||
+      !isValidText(String(id || ""), 1, 100) ||
+      !isValidText(selectedBooking.userName, 2, 80) ||
+      !isValidEmail(selectedBooking.userEmail) ||
+      !isValidText(selectedBooking.eventName, 2, 200) ||
+      !["Pending", "Confirmed", "Cancelled"].includes(selectedBooking.status)
+    ) {
+      setDataError("This booking has invalid details and cannot be updated.");
+      return;
+    }
+
     const updatedBookings = bookings.map(
       (booking) =>
         booking.id === id
@@ -53,6 +91,20 @@ const AdminManageBooking = () => {
   // =========================
 
   const handleCancel = (id) => {
+    const selectedBooking = bookings.find((booking) => booking.id === id);
+
+    if (
+      !selectedBooking ||
+      !isValidText(String(id || ""), 1, 100) ||
+      !isValidText(selectedBooking.userName, 2, 80) ||
+      !isValidEmail(selectedBooking.userEmail) ||
+      !isValidText(selectedBooking.eventName, 2, 200) ||
+      !["Pending", "Confirmed", "Cancelled"].includes(selectedBooking.status)
+    ) {
+      setDataError("This booking has invalid details and cannot be updated.");
+      return;
+    }
+
     const updatedBookings = bookings.map(
       (booking) =>
         booking.id === id
@@ -71,6 +123,11 @@ const AdminManageBooking = () => {
   // =========================
 
   const handleDelete = (id) => {
+    if (!isValidText(String(id || ""), 1, 100)) {
+      setDataError("This booking has an invalid ID and cannot be deleted.");
+      return;
+    }
+
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this booking?"
     );
@@ -124,9 +181,10 @@ const AdminManageBooking = () => {
           .includes(searchText);
 
       const matchesStatus =
-        statusFilter === "All" ||
+        ["All", "Pending", "Confirmed", "Cancelled"].includes(statusFilter) &&
+        (statusFilter === "All" ||
         booking.status ===
-          statusFilter;
+          statusFilter);
 
       return (
         matchesSearch &&
@@ -272,6 +330,7 @@ const AdminManageBooking = () => {
             type="text"
             placeholder="Search by user, email, event or booking ID..."
             value={search}
+            maxLength={100}
             onChange={(e) =>
               setSearch(
                 e.target.value
@@ -283,11 +342,12 @@ const AdminManageBooking = () => {
 
         <select
           value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(
-              e.target.value
-            )
-          }
+          onChange={(e) => {
+            const value = e.target.value;
+            if (["All", "Pending", "Confirmed", "Cancelled"].includes(value)) {
+              setStatusFilter(value);
+            }
+          }}
         >
           <option value="All">
             All Status
@@ -307,6 +367,12 @@ const AdminManageBooking = () => {
         </select>
 
       </div>
+
+      {dataError && (
+        <p className="error-message" role="alert">
+          {dataError}
+        </p>
+      )}
 
       {/* =========================
           BOOKINGS TABLE

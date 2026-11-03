@@ -7,6 +7,21 @@ import {
   cancelBooking,
   removeBooking,
 } from "../Api";
+import {
+  isValidDate,
+  isValidEmail,
+} from "../utils/formValidation";
+
+const getMinBookingDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+};
 
 const ManageBooking = () => {
   const navigate = useNavigate();
@@ -108,7 +123,7 @@ const ManageBooking = () => {
     setMessage("");
     setError("");
 
-    if (!user?.email) {
+    if (!isValidEmail(user?.email)) {
       setError("Please login before booking.");
       return;
     }
@@ -123,8 +138,13 @@ const ManageBooking = () => {
       return;
     }
 
-    if (!bookingDate) {
-      setError("Please select booking date.");
+    if (!isValidDate(bookingDate)) {
+      setError("Please select a valid booking date.");
+      return;
+    }
+
+    if (bookingDate < getMinBookingDate()) {
+      setError("Booking date must be tomorrow or later.");
       return;
     }
 
@@ -160,6 +180,11 @@ const ManageBooking = () => {
       selectedEvent.eventDate ||
       selectedEvent.startDate ||
       bookingDate;
+
+    if (!isValidDate(String(eventDate))) {
+      setError("Selected event ki valid date available nahi hai.");
+      return;
+    }
 
     const bookingDraft = {
       userName: user.name.trim(),
@@ -326,7 +351,7 @@ const ManageBooking = () => {
           <div className="error-message">{error}</div>
         )}
 
-        <form onSubmit={handleBooking}>
+        <form noValidate onSubmit={handleBooking}>
           <div className="form-group">
             <label>Customer Name</label>
             <input
@@ -382,6 +407,7 @@ const ManageBooking = () => {
             <label>Booking Date</label>
             <input
               type="date"
+              min={getMinBookingDate()}
               value={bookingDate}
               onChange={(e) => {
                 setBookingDate(e.target.value);

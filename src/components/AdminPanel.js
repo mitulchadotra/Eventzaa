@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import {
+  isValidDate,
+  isValidEmail,
+  isValidPhone,
+  isValidText,
+} from "../utils/formValidation";
 
 const API_URL = (
   process.env.REACT_APP_API_URL || "https://eventza-backend-7uxv.onrender.com/api"
@@ -457,8 +463,23 @@ export default function AdminPanel() {
     const date = eventForm.date;
     const price = Number(eventForm.price);
 
-    if (!title || !location || !date) {
-      alert("Title, date, and location are required.");
+    if (!isValidText(title, 2, 120)) {
+      alert("Event title must be between 2 and 120 characters.");
+      return;
+    }
+
+    if (!isValidText(location, 2, 200)) {
+      alert("Location must be between 2 and 200 characters.");
+      return;
+    }
+
+    if (category && !isValidText(category, 2, 80)) {
+      alert("Category must be between 2 and 80 characters.");
+      return;
+    }
+
+    if (!isValidDate(date)) {
+      alert("Please enter a valid event date.");
       return;
     }
 
@@ -468,6 +489,11 @@ export default function AdminPanel() {
       price < 0
     ) {
       alert("Enter a valid event price.");
+      return;
+    }
+
+    if (!["Published", "Draft"].includes(eventForm.status)) {
+      alert("Please select a valid event status.");
       return;
     }
 
@@ -579,8 +605,13 @@ export default function AdminPanel() {
 
     const name = categoryForm.name.trim();
 
-    if (!name) {
-      alert("Category name is required.");
+    if (!isValidText(name, 2, 80)) {
+      alert("Category name must be between 2 and 80 characters.");
+      return;
+    }
+
+    if (!isValidText(categoryForm.icon, 0, 20)) {
+      alert("Category icon must be 20 characters or fewer.");
       return;
     }
 
@@ -637,9 +668,36 @@ export default function AdminPanel() {
   const saveProfile = (event) => {
     event.preventDefault();
 
+    const name = typeof profile.name === "string" ? profile.name.trim() : "";
+    const email = typeof profile.email === "string" ? profile.email.trim() : "";
+    const phone = typeof profile.phone === "string" ? profile.phone.trim() : "";
+
+    if (!isValidText(name, 2, 80)) {
+      alert("Name must be between 2 and 80 characters.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    if (!isValidPhone(phone)) {
+      alert("Please enter a valid phone number.");
+      return;
+    }
+
+    const updatedProfile = {
+      ...profile,
+      name,
+      email: email.toLowerCase(),
+      phone,
+    };
+
+    setProfile(updatedProfile);
     localStorage.setItem(
       "adminProfile",
-      JSON.stringify(profile)
+      JSON.stringify(updatedProfile)
     );
 
     alert("Profile saved successfully.");
@@ -1352,6 +1410,7 @@ export default function AdminPanel() {
                 className="admin-input admin-search"
                 placeholder="Search title, category, location..."
                 value={search}
+                maxLength={100}
                 onChange={(event) => setSearch(event.target.value)}
               />
 
@@ -1558,6 +1617,7 @@ export default function AdminPanel() {
                 className="admin-input admin-search"
                 placeholder="Search Transaction ID, User, Event..."
                 value={transactionSearch}
+                maxLength={100}
                 onChange={(event) =>
                   setTransactionSearch(event.target.value)
                 }
@@ -1770,7 +1830,7 @@ export default function AdminPanel() {
           <div className="admin-card">
             <h2>Admin Profile</h2>
 
-            <form onSubmit={saveProfile}>
+            <form noValidate onSubmit={saveProfile}>
               <div className="admin-form-grid">
                 <div className="admin-form-group">
                   <label>Name</label>
@@ -1778,6 +1838,7 @@ export default function AdminPanel() {
                   <input
                     className="admin-input"
                     value={profile.name}
+                    maxLength={80}
                     onChange={(event) =>
                       setProfile({
                         ...profile,
@@ -1794,6 +1855,7 @@ export default function AdminPanel() {
                     className="admin-input"
                     type="email"
                     value={profile.email}
+                    maxLength={254}
                     onChange={(event) =>
                       setProfile({
                         ...profile,
@@ -1808,7 +1870,9 @@ export default function AdminPanel() {
 
                   <input
                     className="admin-input"
+                    type="tel"
                     value={profile.phone}
+                    maxLength={20}
                     onChange={(event) =>
                       setProfile({
                         ...profile,
@@ -1852,7 +1916,7 @@ export default function AdminPanel() {
               </button>
             </div>
 
-            <form onSubmit={saveEvent}>
+            <form noValidate onSubmit={saveEvent}>
               <div className="admin-form-grid">
                 <div className="admin-form-group full">
                   <label>Event Title *</label>
@@ -1863,6 +1927,7 @@ export default function AdminPanel() {
                     value={eventForm.title}
                     onChange={updateEventField}
                     required
+                    maxLength={120}
                   />
                 </div>
 
@@ -1900,6 +1965,7 @@ export default function AdminPanel() {
                     list="event-categories"
                     value={eventForm.category}
                     onChange={updateEventField}
+                    maxLength={80}
                   />
 
                   <datalist id="event-categories">
@@ -1921,6 +1987,7 @@ export default function AdminPanel() {
                     value={eventForm.location}
                     onChange={updateEventField}
                     required
+                    maxLength={200}
                   />
                 </div>
 
@@ -2017,7 +2084,7 @@ export default function AdminPanel() {
               </button>
             </div>
 
-            <form onSubmit={saveCategory}>
+            <form noValidate onSubmit={saveCategory}>
               <div className="admin-form-grid">
                 <div className="admin-form-group">
                   <label>Category Name *</label>
@@ -2032,6 +2099,7 @@ export default function AdminPanel() {
                       })
                     }
                     required
+                    maxLength={80}
                   />
                 </div>
 
@@ -2048,6 +2116,7 @@ export default function AdminPanel() {
                       })
                     }
                     placeholder="e.g. 🎵"
+                    maxLength={20}
                   />
                 </div>
               </div>

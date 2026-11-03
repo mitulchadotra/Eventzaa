@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { getEvents } from "../Api";
+import { isValidDate, isValidText } from "../utils/formValidation";
 
 // ================= BACKEND IMAGE URL =================
 
@@ -43,11 +44,20 @@ const getEventImage = (event) => {
 
 const Events = () => {
   const navigate = useNavigate();
+  const locationState = useLocation();
+  const searchState = locationState.state || {};
 
   const [events, setEvents] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(
+    isValidText(searchState.search, 1, 100) ? searchState.search : ""
+  );
+  const [locationSearch, setLocationSearch] = useState(
+    isValidText(searchState.location, 1, 100)
+      ? searchState.location
+      : ""
+  );
   const [category, setCategory] = useState("All");
 
   // ================= LOAD EVENTS =================
@@ -116,23 +126,48 @@ const Events = () => {
   // ================= SEARCH AND FILTER =================
 
   const filteredEvents = events.filter((event) => {
-    const title = event.title || event.name || "";
-    const searchText = search.toLowerCase();
+    const title = String(event.title || event.name || "");
+    const eventCategory = String(event.category || "");
+    const eventLocation = String(event.location || "");
+    const searchText = search.trim().toLowerCase();
+    const locationText = locationSearch.trim().toLowerCase();
 
     const searchMatch =
       title.toLowerCase().includes(searchText) ||
-      (event.category || "").toLowerCase().includes(searchText) ||
-      (event.location || "").toLowerCase().includes(searchText);
+      eventCategory.toLowerCase().includes(searchText) ||
+      eventLocation.toLowerCase().includes(searchText);
 
     const categoryMatch =
       category === "All" || event.category === category;
-
-    return searchMatch && categoryMatch;
+    const locationMatch =
+      !locationText || eventLocation.toLowerCase().includes(locationText);
+    return searchMatch && categoryMatch && locationMatch;
   });
 
   // ================= BOOKING =================
 
   const handleBooking = (event) => {
+    const eventTitle = event?.title || event?.name;
+    const price = Number(event?.price ?? 0);
+
+    if (!isValidText(eventTitle, 2, 200)) {
+      alert("This event has invalid details and cannot be booked.");
+      return;
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+      alert("This event has an invalid ticket price.");
+      return;
+    }
+
+    if (
+      !isValidDate(String(event?.date || "")) ||
+      !isValidText(String(event?.location || ""), 2, 200)
+    ) {
+      alert("This event has an invalid date or location and cannot be booked.");
+      return;
+    }
+
     let loggedUser = null;
 
     try {
@@ -188,7 +223,19 @@ const Events = () => {
           type="text"
           placeholder="🔍 Search events..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          maxLength={100}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (value.length <= 100) setSearch(value);
+          }}
+        />
+
+        <input
+          type="text"
+          placeholder="Filter by location..."
+          value={locationSearch}
+          maxLength={100}
+          onChange={(e) => setLocationSearch(e.target.value)}
         />
 
         <select
@@ -226,7 +273,6 @@ const Events = () => {
               event.title || event.name || "Untitled Event";
 
             const imageSrc = getEventImage(event);
-
             return (
               <div
                 className="event-card"

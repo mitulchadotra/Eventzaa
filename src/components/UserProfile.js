@@ -1,7 +1,38 @@
 import React, { useState } from "react";
+import {
+  isValidEmail,
+  isValidPhone,
+  isValidText,
+} from "../utils/formValidation";
+
+const getStoredUser = () => {
+  try {
+    const storedUser = JSON.parse(
+      localStorage.getItem("loggedInUser") || "{}"
+    );
+
+    if (!storedUser || typeof storedUser !== "object") return {};
+
+    return {
+      ...storedUser,
+      name: isValidText(storedUser.name, 2, 80)
+        ? storedUser.name
+        : "",
+      email: isValidEmail(storedUser.email)
+        ? storedUser.email
+        : "",
+      phone: isValidPhone(storedUser.phone)
+        ? storedUser.phone
+        : "",
+    };
+  } catch (error) {
+    console.error("Invalid saved profile data:", error);
+    return {};
+  }
+};
 
 const UserProfile = () => {
-  const storedUser = JSON.parse(localStorage.getItem("loggedInUser")) || {};
+  const storedUser = getStoredUser();
   const [user, setUser] = useState(storedUser);
   const [formData, setFormData] = useState({
     name: storedUser.name || "",
@@ -21,15 +52,25 @@ const UserProfile = () => {
   const handleSave = (event) => {
     event.preventDefault();
 
-    if (!formData.name.trim() || !formData.email.trim()) {
-      setError("Name and email are required.");
+    if (!isValidText(formData.name, 2, 80)) {
+      setError("Name must be between 2 and 80 characters.");
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!isValidPhone(formData.phone)) {
+      setError("Please enter a valid phone number.");
       return;
     }
 
     const updatedUser = {
       ...user,
       name: formData.name.trim(),
-      email: formData.email.trim(),
+      email: formData.email.trim().toLowerCase(),
       phone: formData.phone.trim(),
     };
 
@@ -76,7 +117,7 @@ const UserProfile = () => {
         </div>
 
         {isEditing ? (
-          <form className="user-profile-form" onSubmit={handleSave}>
+          <form className="user-profile-form" noValidate onSubmit={handleSave}>
             <label>
               Full name
               <input
@@ -84,6 +125,8 @@ const UserProfile = () => {
                 value={formData.name}
                 onChange={handleChange}
                 type="text"
+                required
+                maxLength={80}
               />
             </label>
             <label>
@@ -93,6 +136,8 @@ const UserProfile = () => {
                 value={formData.email}
                 onChange={handleChange}
                 type="email"
+                required
+                maxLength={254}
               />
             </label>
             <label>
@@ -102,6 +147,7 @@ const UserProfile = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 type="tel"
+                maxLength={20}
               />
             </label>
             {error && <p className="user-profile-error">{error}</p>}

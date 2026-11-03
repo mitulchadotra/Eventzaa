@@ -1,4 +1,8 @@
 import React, { useState } from "react";
+import {
+  isValidEmail,
+  isValidText,
+} from "../utils/formValidation";
 
 const Contact = () => {
 
@@ -8,6 +12,7 @@ const Contact = () => {
     subject: "",
     message: ""
   });
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
 
@@ -15,6 +20,7 @@ const Contact = () => {
       ...form,
       [e.target.name]: e.target.value
     });
+    setError("");
 
   };
 
@@ -22,8 +28,29 @@ const Contact = () => {
 
     e.preventDefault();
 
+    if (!isValidText(form.name, 2, 80)) {
+      setError("Name must be between 2 and 80 characters.");
+      return;
+    }
+
+    if (!isValidEmail(form.email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!isValidText(form.subject, 3, 120)) {
+      setError("Subject must be between 3 and 120 characters.");
+      return;
+    }
+
+    if (!isValidText(form.message, 10, 2000)) {
+      setError("Message must be between 10 and 2000 characters.");
+      return;
+    }
+
     alert("Message sent successfully!");
 
+    setError("");
     setForm({
       name: "",
       email: "",
@@ -111,8 +138,11 @@ const Contact = () => {
 
           <form
             className="contact-form"
+            noValidate
             onSubmit={handleSubmit}
           >
+
+            {error && <p role="alert">{error}</p>}
 
             <input
               name="name"
@@ -120,6 +150,7 @@ const Contact = () => {
               value={form.name}
               onChange={handleChange}
               required
+              maxLength={80}
             />
 
             <input
@@ -129,6 +160,7 @@ const Contact = () => {
               value={form.email}
               onChange={handleChange}
               required
+              maxLength={254}
             />
 
             <input
@@ -137,6 +169,7 @@ const Contact = () => {
               value={form.subject}
               onChange={handleChange}
               required
+              maxLength={120}
             />
 
             <textarea
@@ -145,6 +178,7 @@ const Contact = () => {
               value={form.message}
               onChange={handleChange}
               required
+              maxLength={2000}
             />
 
             <button type="submit">

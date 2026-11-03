@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../Api";
+import { isValidEmail, isValidText } from "../utils/formValidation";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -45,6 +46,16 @@ export default function Signup() {
       return;
     }
 
+    if (!isValidText(name, 2, 80)) {
+      setError("Name must be between 2 and 80 characters.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -82,7 +93,9 @@ export default function Signup() {
 
       // Registration successful; go to Login page.
       setTimeout(() => {
-        navigate("/Login");
+        navigate("/Login", {
+          state: { email },
+        });
       }, 1000);
     } catch (err) {
       setError(
@@ -248,7 +261,7 @@ export default function Signup() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form noValidate onSubmit={handleSubmit}>
           <div className="signup-form-group">
             <label htmlFor="signup-name">Full Name</label>
             <input
@@ -259,6 +272,7 @@ export default function Signup() {
               value={formData.name}
               onChange={handleChange}
               autoComplete="name"
+              maxLength={80}
               required
             />
           </div>
@@ -273,6 +287,7 @@ export default function Signup() {
               value={formData.email}
               onChange={handleChange}
               autoComplete="email"
+              maxLength={254}
               required
             />
           </div>

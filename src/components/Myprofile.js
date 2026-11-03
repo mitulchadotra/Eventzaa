@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  isValidEmail,
+  isValidPhone,
+  isValidText,
+} from "../utils/formValidation";
 
 const MyProfile = () => {
   const navigate = useNavigate();
@@ -14,14 +19,25 @@ const MyProfile = () => {
     const loginStatus =
       localStorage.getItem("isLoggedIn");
 
-    const loggedInUser =
-      JSON.parse(
-        localStorage.getItem("loggedInUser")
+    let loggedInUser;
+
+    try {
+      loggedInUser = JSON.parse(
+        localStorage.getItem("loggedInUser") || "null"
       );
+    } catch (error) {
+      console.error("Invalid saved profile data:", error);
+      navigate("/login");
+      return;
+    }
 
     if (
       loginStatus !== "true" ||
-      !loggedInUser
+      !loggedInUser ||
+      !isValidText(loggedInUser.name, 2, 80) ||
+      !isValidEmail(loggedInUser.email) ||
+      !isValidPhone(loggedInUser.phone) ||
+      !["user", "admin"].includes(loggedInUser.role)
     ) {
       navigate("/login");
       return;

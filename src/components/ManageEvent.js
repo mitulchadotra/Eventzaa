@@ -1,4 +1,8 @@
 import React, { useState } from "react";
+import {
+  isValidDate,
+  isValidText,
+} from "../utils/formValidation";
 
 const ManageEvents = () => {
   const [search, setSearch] = useState("");
@@ -135,15 +139,46 @@ const ManageEvents = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (
-      !formData.name ||
-      !formData.date ||
-      !formData.venue ||
-      !formData.organizer
-    ) {
-      alert("Please fill all fields");
+    if (!isValidText(formData.name, 2, 120)) {
+      alert("Event name must be between 2 and 120 characters.");
       return;
     }
+
+    if (
+      !["Music", "Technology", "Comedy", "Sports", "Conference"].includes(
+        formData.category
+      )
+    ) {
+      alert("Please select a valid event category.");
+      return;
+    }
+
+    if (!isValidDate(formData.date)) {
+      alert("Please enter a valid event date.");
+      return;
+    }
+
+    if (!isValidText(formData.venue, 2, 120)) {
+      alert("Venue must be between 2 and 120 characters.");
+      return;
+    }
+
+    if (!isValidText(formData.organizer, 2, 120)) {
+      alert("Organizer must be between 2 and 120 characters.");
+      return;
+    }
+
+    if (!["Upcoming", "Completed"].includes(formData.status)) {
+      alert("Please select a valid event status.");
+      return;
+    }
+
+    const validatedFormData = {
+      ...formData,
+      name: formData.name.trim(),
+      venue: formData.venue.trim(),
+      organizer: formData.organizer.trim(),
+    };
 
     if (editEvent) {
       setEvents(
@@ -151,7 +186,7 @@ const ManageEvents = () => {
           event.id === editEvent.id
             ? {
                 ...event,
-                ...formData,
+                ...validatedFormData,
               }
             : event
         )
@@ -159,7 +194,7 @@ const ManageEvents = () => {
     } else {
       const newEvent = {
         id: Date.now(),
-        ...formData,
+        ...validatedFormData,
       };
 
       setEvents([...events, newEvent]);
@@ -300,6 +335,7 @@ const ManageEvents = () => {
               type="text"
               placeholder="Search events..."
               value={search}
+              maxLength={100}
               onChange={(e) =>
                 setSearch(e.target.value)
               }
@@ -310,9 +346,14 @@ const ManageEvents = () => {
 
           <select
             value={category}
-            onChange={(e) =>
-              setCategory(e.target.value)
-            }
+            onChange={(e) => {
+              const value = e.target.value;
+              if (
+                ["All", "Music", "Technology", "Comedy", "Sports", "Conference"].includes(value)
+              ) {
+                setCategory(value);
+              }
+            }}
           >
             <option value="All">
               All Categories
@@ -538,7 +579,7 @@ const ManageEvents = () => {
             </div>
 
 
-            <form onSubmit={handleSubmit}>
+            <form noValidate onSubmit={handleSubmit}>
 
               <div className="form-grid">
 
@@ -552,6 +593,7 @@ const ManageEvents = () => {
                     type="text"
                     placeholder="Enter event name"
                     value={formData.name}
+                    maxLength={120}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -614,6 +656,7 @@ const ManageEvents = () => {
                     type="text"
                     placeholder="25 Aug 2026"
                     value={formData.date}
+                    maxLength={40}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -635,6 +678,7 @@ const ManageEvents = () => {
                     type="text"
                     placeholder="Enter venue"
                     value={formData.venue}
+                    maxLength={120}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -656,6 +700,7 @@ const ManageEvents = () => {
                     type="text"
                     placeholder="Enter organizer"
                     value={formData.organizer}
+                    maxLength={120}
                     onChange={(e) =>
                       setFormData({
                         ...formData,

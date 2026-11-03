@@ -1,13 +1,17 @@
 
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { loginUser, resendLoginOtp, verifyLoginOtp } from "../Api";
+import { isValidEmail } from "../utils/formValidation";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
-    email: "",
+    email: isValidEmail(location.state?.email)
+      ? location.state.email.trim().toLowerCase()
+      : "",
     password: "",
     role: "user",
   });
@@ -87,8 +91,8 @@ const Login = () => {
     const password = formData.password;
     const role = formData.role;
 
-    if (!email || !password) {
-      setError("Please enter email and password.");
+    if (!isValidEmail(email) || !password) {
+      setError("Please enter a valid email address and password.");
       return;
     }
 
@@ -111,10 +115,29 @@ const Login = () => {
       }
 
       if (role === "user") {
+        if (data.requiresOtp !== true) {
+          if (data.token && data.user) {
+            saveLoginData(data);
+          } else {
+            setError("OTP verification could not be started. Please try again.");
+          }
+          return;
+        }
+
+        if (isValidEmail(data.email)) {
+          setFormData((previous) => ({
+            ...previous,
+            email: data.email.trim().toLowerCase(),
+          }));
+        }
+
         setOtp("");
         setOtpStep(true);
         setResendSeconds(30);
-        setSuccess(data.message || "A verification code has been sent to your email.");
+        setSuccess(
+          data.message ||
+            `A verification code has been sent to ${data.email || email}.`
+        );
         return;
       }
 
@@ -593,7 +616,7 @@ const Login = () => {
           )}
 
           {otpStep ? (
-            <form onSubmit={handleVerifyOtp}>
+            <form noValidate onSubmit={handleVerifyOtp}>
               <div className="event-form-group">
                 <label htmlFor="login-otp">Verification Code</label>
                 <input
@@ -652,7 +675,7 @@ const Login = () => {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleLogin}>
+            <form noValidate onSubmit={handleLogin}>
               <div className="event-form-group">
                 <label htmlFor="email">Email</label>
 

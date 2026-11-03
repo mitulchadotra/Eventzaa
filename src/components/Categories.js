@@ -104,7 +104,12 @@ const Categories = () => {
               type="text"
               placeholder="Search categories..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              maxLength={80}
+              onChange={(e) => {
+                if (e.target.value.length <= 80) {
+                  setSearch(e.target.value);
+                }
+              }}
             />
 
             {search && (

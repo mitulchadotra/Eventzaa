@@ -1,10 +1,41 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  isValidDate,
+  isValidEmail,
+  isValidText,
+} from "../utils/formValidation";
 
 const Home = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [userError, setUserError] = useState("");
   const [isLoadingUser, setIsLoadingUser] = useState(false);
+  const [eventQuery, setEventQuery] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
+  const [eventDate, setEventDate] = useState("");
+
+  const handleSearchEvents = () => {
+    const query = eventQuery.trim();
+    const location = eventLocation.trim();
+
+    if (
+      (query && !isValidText(query, 1, 100)) ||
+      (location && !isValidText(location, 1, 100))
+    ) {
+      alert("Search and location must be 100 characters or fewer.");
+      return;
+    }
+
+    if (eventDate && !isValidDate(eventDate)) {
+      alert("Please select a valid event date.");
+      return;
+    }
+
+    navigate("/events", {
+      state: { search: query, location, date: eventDate },
+    });
+  };
 
   const handleLoadUser = async () => {
     setIsLoadingUser(true);
@@ -34,9 +65,24 @@ const Home = () => {
       }
 
       const responseData = await response.json();
-      setUser(responseData.data ?? responseData);
+      const profile = responseData.data ?? responseData;
+
+      if (
+        !profile ||
+        typeof profile.name !== "string" ||
+        !isValidText(profile.name, 2, 80) ||
+        !isValidEmail(profile.email)
+      ) {
+        setUser(null);
+        setUserError("The server returned invalid profile details.");
+        return;
+      }
+
+      setUser(profile);
+      setUserError("");
     } catch (error) {
       console.error("Failed to fetch user:", error);
+      setUserError(error.message || "Unable to load profile details.");
     } finally {
       setIsLoadingUser(false);
     }
@@ -59,6 +105,10 @@ const Home = () => {
                 <span>{user.email || "Email not provided"}</span>
                 {user.phone && <span>{user.phone}</span>}
               </div>
+            )}
+
+            {userError && (
+              <p role="alert">{userError}</p>
             )}
 
             <span className="hero-label">
@@ -173,6 +223,9 @@ const Home = () => {
                 <input
                   type="text"
                   placeholder="Search events"
+                  value={eventQuery}
+                  maxLength={100}
+                  onChange={(event) => setEventQuery(event.target.value)}
                 />
               </div>
             </div>
@@ -186,6 +239,9 @@ const Home = () => {
                 <input
                   type="text"
                   placeholder="Where?"
+                  value={eventLocation}
+                  maxLength={100}
+                  onChange={(event) => setEventLocation(event.target.value)}
                 />
               </div>
             </div>
@@ -196,14 +252,18 @@ const Home = () => {
 
               <div>
                 <small>DATE</small>
-                <input type="date" />
+                <input
+                  type="date"
+                  value={eventDate}
+                  onChange={(event) => setEventDate(event.target.value)}
+                />
               </div>
             </div>
 
 
             <button
               className="search-btn"
-              onClick={() => navigate("/events")}
+              onClick={handleSearchEvents}
             >
               Search Events
             </button>

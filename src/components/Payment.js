@@ -7,6 +7,7 @@ import {
   createPaymentOrder,
   verifyPayment,
 } from "../Api";
+import { isValidEmail, isValidText } from "../utils/formValidation";
 
 // ================= CUSTOMER DETAILS =================
 
@@ -136,7 +137,13 @@ const Payment = () => {
       return;
     }
 
-    if (!eventTitle || !userName || !email || !eventDate || !eventLocation) {
+    if (
+      !isValidText(eventTitle, 1, 200) ||
+      !isValidText(userName, 1, 80) ||
+      !isValidEmail(email) ||
+      !isValidText(eventLocation, 1, 200) ||
+      !eventDate
+    ) {
       setError(
         "Booking details incomplete hain. Event, date, location aur user details check karein."
       );
@@ -159,7 +166,7 @@ const Payment = () => {
       return;
     }
 
-    if (!paymentMethod) {
+    if (!["UPI", "Card"].includes(paymentMethod)) {
       setError("Please select UPI or Card.");
       return;
     }
@@ -594,7 +601,7 @@ const Payment = () => {
 
             {/* PAYMENT METHOD */}
 
-            <form onSubmit={handlePayment}>
+            <form noValidate onSubmit={handlePayment}>
               <h3 style={styles.paymentTitle}>
                 Select Payment Method
               </h3>

@@ -1,11 +1,23 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { isValidEmail } from "../utils/formValidation";
 
 const Footer = () => {
   const location = useLocation();
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterError, setNewsletterError] = useState("");
 
   const isAdminPanel =
     location.pathname.toLowerCase() === "/adminpanel";
+
+  const handleNewsletterSubmit = () => {
+    if (!isValidEmail(newsletterEmail)) {
+      setNewsletterError("Enter a valid email address.");
+      return;
+    }
+
+    setNewsletterError("Newsletter signup is not available yet.");
+  };
 
   return (
     <>
@@ -88,12 +100,23 @@ const Footer = () => {
               <input
                 type="email"
                 placeholder="Your email"
+                value={newsletterEmail}
+                maxLength={254}
+                aria-label="Newsletter email"
+                aria-invalid={Boolean(newsletterError)}
+                onChange={(event) => {
+                  setNewsletterEmail(event.target.value);
+                  setNewsletterError("");
+                }}
               />
 
-              <button type="button">
+              <button type="button" onClick={handleNewsletterSubmit}>
                 →
               </button>
             </div>
+            {newsletterError && (
+              <small role="alert">{newsletterError}</small>
+            )}
           </div>
 
         </div>

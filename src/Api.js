@@ -1,4 +1,3 @@
-
 import axios from "axios";
 
 // ================= API CONFIGURATION =================
@@ -48,11 +47,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (!error.response) {
-      console.error("API CONNECTION ERROR:", {
-        message: error.message,
-        url: error.config?.url,
-        baseURL: error.config?.baseURL,
-      });
+      console.error("API CONNECTION ERROR:", error.message);
     } else {
       console.error("API RESPONSE ERROR:", {
         status: error.response.status,
@@ -82,7 +77,7 @@ export const loginUser = (data) =>
   api.post("/auth/login", {
     email: data.email?.trim().toLowerCase(),
     password: data.password,
-    role: data.role,
+    role: data.role || "user",
   });
 
 export const verifyLoginOtp = (data) =>
@@ -144,8 +139,7 @@ export const removeCategory = (id) =>
 
 // ================= BOOKING APIs =================
 
-export const getBookings = () =>
-  api.get("/bookings");
+export const getBookings = () => api.get("/bookings");
 
 export const getBookingById = (id) =>
   api.get(`/bookings/${encodeURIComponent(id)}`);
@@ -164,30 +158,21 @@ export const removeBooking = (id) =>
 
 // ================= RAZORPAY PAYMENT APIs =================
 
-// Create Razorpay order
 export const createPaymentOrder = (data) =>
   api.post("/payments/create-order", data);
 
-// Verify Razorpay payment
 export const verifyPayment = (data) =>
   api.post("/payments/verify", data);
 
-// Get logged-in user's payments
 export const getMyPayments = () =>
   api.get("/payments/my-payments");
 
-// Get all payments (admin endpoint)
 export const getAllPayments = () =>
   api.get("/payments/all");
 
 // ================= LEGACY PAYMENT APIs =================
 
-// Keep these only if other existing components still use them.
-// They are NOT part of the Razorpay checkout flow.
-// Your current Razorpay backend does not define these endpoints.
-
-export const getPayments = () =>
-  api.get("/payments");
+export const getPayments = () => api.get("/payments");
 
 export const getPaymentById = (id) =>
   api.get(`/payments/${encodeURIComponent(id)}`);
@@ -202,14 +187,11 @@ export const removePayment = (id) =>
   api.delete(`/payments/${encodeURIComponent(id)}`);
 
 export const getBookingPayments = (bookingId) =>
-  api.get(
-    `/payments/bookings/${encodeURIComponent(bookingId)}/payments`
-  );
+  api.get(`/payments/bookings/${encodeURIComponent(bookingId)}/payments`);
 
 // ================= BACKEND CONNECTION TEST =================
 
-export const testBackendConnection = () =>
-  api.get("/");
+export const testBackendConnection = () => api.get("/");
 
 // ================= EXPORT =================
 

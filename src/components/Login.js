@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "../Api";
@@ -8,16 +9,18 @@ const Login = () => {
   const [role, setRole] = useState("user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
+  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({
     email: "",
     password: "",
   });
 
+  const [loading, setLoading] = useState(false);
+
   const handleLogin = async (e) => {
     e.preventDefault();
+
     setError("");
 
     const errors = {
@@ -35,108 +38,65 @@ const Login = () => {
 
     setFieldErrors(errors);
 
-    if (errors.email || errors.password) return;
+    if (errors.email || errors.password) {
+      return;
+    }
 
     try {
       setLoading(true);
 
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // IMPORTANT:
+      // This API verifies password and sends OTP.
+      // It does NOT return the final login session.
+
       const response = await loginUser({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
+        role,
       });
 
       const result = response?.data;
 
       if (
         !result ||
-        result.status === 0 ||
+        result.status !== 1 ||
         result.success === false
       ) {
-        setError(result?.message || "Invalid email or password.");
-        return;
-      }
-
-      // Backend returns { status, message, token, user, data }
-      const backendUser =
-        result.user ||
-        result.data?.user ||
-        result.data;
-
-      const token =
-        result.token ||
-        result.data?.token ||
-        result.accessToken;
-
-      if (!token || !backendUser) {
         setError(
-          "Login response is missing token or user details. Please check backend response."
+          result?.message || "Unable to send login OTP"
         );
         return;
       }
 
-      const backendRole = String(
-        backendUser.role || ""
-      ).trim().toLowerCase();
+      // Do not store JWT before OTP verification.
+      localStorage.removeItem("token");
+      localStorage.removeItem("loggedInUser");
+      localStorage.removeItem("user");
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("admin");
+      localStorage.removeItem("adminProfile");
 
-      if (!["user", "admin"].includes(backendRole)) {
-        setError("Invalid account role.");
-        return;
-      }
-
-      // Check selected role against database role
-      if (backendRole !== role) {
-        setError(
-          role === "admin"
-            ? "This account is not an admin account."
-            : "This account is not a user account. Please select Admin."
-        );
-        return;
-      }
-
-      const userId = backendUser._id || backendUser.id || "";
-
-      const loggedInUser = {
-        _id: userId,
-        id: userId,
-        name: backendUser.name || "User",
-        email:
-          backendUser.email || email.trim().toLowerCase(),
-        phone: backendUser.phone || "",
-        address: backendUser.address || "",
-        image: backendUser.image || "",
-        role: backendRole,
-      };
-
-      // Save login session
-      localStorage.setItem("token", token);
-      localStorage.setItem(
-        "loggedInUser",
-        JSON.stringify(loggedInUser)
+      // Store pending OTP details only.
+      sessionStorage.setItem(
+        "pendingOtpEmail",
+        normalizedEmail
       );
-      localStorage.setItem(
-        "user",
-        JSON.stringify(loggedInUser)
+
+      sessionStorage.setItem(
+        "pendingOtpRole",
+        role
       );
-      localStorage.setItem("isLoggedIn", "true");
 
-      if (backendRole === "admin") {
-        localStorage.setItem("admin", "true");
-        localStorage.setItem(
-          "adminProfile",
-          JSON.stringify(loggedInUser)
-        );
-      } else {
-        localStorage.removeItem("admin");
-        localStorage.removeItem("adminProfile");
-      }
+      // Open OTP verification page.
+      navigate("/verify-otp", {
+        state: {
+          email: normalizedEmail,
+          role,
+        },
+      });
 
-      window.dispatchEvent(new Event("authChanged"));
-
-      // Redirect according to database role
-      navigate(
-        backendRole === "admin" ? "/Adminpanel" : "/",
-        { replace: true }
-      );
     } catch (err) {
       console.error(
         "Login error:",
@@ -146,15 +106,14 @@ const Login = () => {
       if (err.response) {
         setError(
           err.response.data?.message ||
-            `Login failed. Server returned ${err.response.status}.`
-        );
-      } else if (err.request) {
-        setError(
-          "Cannot connect to the Eventzaa server. Please check your internet connection or backend deployment."
+          `Login failed. Server returned ${err.response.status}`
         );
       } else {
-        setError("Something went wrong. Please try again.");
+        setError(
+          "Cannot connect to Eventzaa server. Please try again."
+        );
       }
+
     } finally {
       setLoading(false);
     }
@@ -162,12 +121,21 @@ const Login = () => {
 
   return (
     <div className="login-page">
+
       <div className="login-box">
+
+        {/* LOGO */}
+
         <div className="logo">
-          <div className="logo-icon">E</div>
+
+          <div className="logo-icon">
+            E
+          </div>
+
           <div className="logo-text">
             EVENT<span>ZAA</span>
           </div>
+
         </div>
 
         <h2>Welcome Back</h2>
@@ -176,13 +144,19 @@ const Login = () => {
           Login to your Eventzaa account
         </p>
 
+        {/* USER / ADMIN */}
+
         <div className="role-buttons">
+
           {["user", "admin"].map((item) => (
+
             <button
               key={item}
               type="button"
               className={
-                role === item ? "role-btn active" : "role-btn"
+                role === item
+                  ? "role-btn active"
+                  : "role-btn"
               }
               onClick={() => {
                 setRole(item);
@@ -191,18 +165,35 @@ const Login = () => {
             >
               {item === "user" ? "User" : "Admin"}
             </button>
+
           ))}
+
         </div>
 
+        {/* ERROR */}
+
         {error && (
-          <div className="error-box" role="alert">
+
+          <div
+            className="error-box"
+            role="alert"
+          >
             {error}
           </div>
+
         )}
 
+        {/* LOGIN FORM */}
+
         <form onSubmit={handleLogin} noValidate>
+
+          {/* EMAIL */}
+
           <div className="input-group">
-            <label htmlFor="login-email">Email</label>
+
+            <label htmlFor="login-email">
+              Email
+            </label>
 
             <input
               id="login-email"
@@ -223,14 +214,22 @@ const Login = () => {
             />
 
             {fieldErrors.email && (
+
               <span className="field-error">
                 {fieldErrors.email}
               </span>
+
             )}
+
           </div>
 
+          {/* PASSWORD */}
+
           <div className="input-group">
-            <label htmlFor="login-password">Password</label>
+
+            <label htmlFor="login-password">
+              Password
+            </label>
 
             <input
               id="login-password"
@@ -251,32 +250,49 @@ const Login = () => {
             />
 
             {fieldErrors.password && (
+
               <span className="field-error">
                 {fieldErrors.password}
               </span>
+
             )}
+
           </div>
 
+          {/* FORGOT PASSWORD */}
+
           <div className="forgot-row">
+
             <button
               type="button"
               className="forgot-btn"
-              onClick={() => navigate("/forgot-password")}
+              onClick={() =>
+                navigate("/forgot-password")
+              }
             >
               Forgot Password?
             </button>
+
           </div>
+
+          {/* LOGIN BUTTON */}
 
           <button
             type="submit"
             className="login-submit"
             disabled={loading}
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading
+              ? "Sending OTP..."
+              : "Login"}
           </button>
+
         </form>
 
+        {/* SIGNUP */}
+
         <div className="signup-text">
+
           Don't have an account?
 
           <button
@@ -285,11 +301,17 @@ const Login = () => {
           >
             Sign Up
           </button>
+
         </div>
+
       </div>
 
+      {/* CSS */}
+
       <style>{`
-        .login-page, .login-page * {
+
+        .login-page,
+        .login-page * {
           box-sizing: border-box;
         }
 
@@ -299,7 +321,11 @@ const Login = () => {
           align-items: center;
           justify-content: center;
           padding: 24px;
-          background: linear-gradient(135deg, #f7f5ff, #ffffff);
+          background: linear-gradient(
+            135deg,
+            #f7f5ff,
+            #ffffff
+          );
           font-family: Arial, sans-serif;
         }
 
@@ -327,7 +353,11 @@ const Login = () => {
           align-items: center;
           justify-content: center;
           border-radius: 11px;
-          background: linear-gradient(135deg, #704cff, #9b63ff);
+          background: linear-gradient(
+            135deg,
+            #704cff,
+            #9b63ff
+          );
           color: #fff;
           font-size: 22px;
           font-weight: 800;
@@ -432,7 +462,8 @@ const Login = () => {
           margin-bottom: 18px;
         }
 
-        .forgot-btn, .signup-text button {
+        .forgot-btn,
+        .signup-text button {
           border: none;
           background: none;
           color: #704cff;
@@ -473,7 +504,8 @@ const Login = () => {
           font-weight: 700;
         }
 
-        @media (max-width: 500px) {
+        @media(max-width:500px) {
+
           .login-page {
             padding: 15px;
           }
@@ -485,8 +517,11 @@ const Login = () => {
           .login-box h2 {
             font-size: 24px;
           }
+
         }
+
       `}</style>
+
     </div>
   );
 };

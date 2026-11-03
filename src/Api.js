@@ -30,7 +30,6 @@ api.interceptors.request.use(
       delete config.headers.Authorization;
     }
 
-    // Browser should set multipart Content-Type automatically.
     if (
       typeof FormData !== "undefined" &&
       config.data instanceof FormData
@@ -77,9 +76,8 @@ export const registerUser = (data) =>
     address: data.address || "",
   });
 
-// ================= OTP LOGIN APIs =================
+// ================= LOGIN APIs =================
 
-// Step 1: Check email/password and send OTP.
 export const loginUser = (data) =>
   api.post("/auth/login", {
     email: data.email?.trim().toLowerCase(),
@@ -87,14 +85,12 @@ export const loginUser = (data) =>
     role: data.role,
   });
 
-// Step 2: Verify OTP and receive JWT.
 export const verifyLoginOtp = (data) =>
   api.post("/auth/verify-login-otp", {
     email: data.email?.trim().toLowerCase(),
     otp: String(data.otp).trim(),
   });
 
-// Step 3: Resend OTP.
 export const resendLoginOtp = (data) =>
   api.post("/auth/resend-login-otp", {
     email: data.email?.trim().toLowerCase(),
@@ -166,7 +162,29 @@ export const cancelBooking = (id) =>
 export const removeBooking = (id) =>
   api.delete(`/bookings/${encodeURIComponent(id)}`);
 
-// ================= PAYMENT APIs =================
+// ================= RAZORPAY PAYMENT APIs =================
+
+// Create Razorpay order
+export const createPaymentOrder = (data) =>
+  api.post("/payments/create-order", data);
+
+// Verify Razorpay payment
+export const verifyPayment = (data) =>
+  api.post("/payments/verify", data);
+
+// Get logged-in user's payments
+export const getMyPayments = () =>
+  api.get("/payments/my-payments");
+
+// Get all payments (admin endpoint)
+export const getAllPayments = () =>
+  api.get("/payments/all");
+
+// ================= LEGACY PAYMENT APIs =================
+
+// Keep these only if other existing components still use them.
+// They are NOT part of the Razorpay checkout flow.
+// Your current Razorpay backend does not define these endpoints.
 
 export const getPayments = () =>
   api.get("/payments");
@@ -187,9 +205,6 @@ export const getBookingPayments = (bookingId) =>
   api.get(
     `/payments/bookings/${encodeURIComponent(bookingId)}/payments`
   );
-
-export const getMyPayments = () =>
-  api.get("/payments/my-payments");
 
 // ================= BACKEND CONNECTION TEST =================
 

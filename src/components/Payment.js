@@ -1,19 +1,43 @@
+
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+
 import {
   addBooking,
-  addPayment,
-  getBookingPayments,
+  createPaymentOrder,
+  verifyPayment,
 } from "../Api";
 
 // ================= CUSTOMER DETAILS =================
 
 const getCustomer = () => {
   try {
-    return JSON.parse(localStorage.getItem("loggedInUser") || "{}") || {};
+    return (
+      JSON.parse(localStorage.getItem("loggedInUser") || "{}") || {}
+    );
   } catch {
     return {};
   }
+};
+
+// ================= RAZORPAY SCRIPT =================
+
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+
+    document.body.appendChild(script);
+  });
 };
 
 const Payment = () => {
@@ -30,8 +54,8 @@ const Payment = () => {
   const [paymentCompleted, setPaymentCompleted] = useState(false);
 
   const [savedBooking, setSavedBooking] = useState(null);
-  const [paidBooking, setPaidBooking] = useState(null);
   const [savedPayment, setSavedPayment] = useState(null);
+  const [paidBooking, setPaidBooking] = useState(null);
 
   const [error, setError] = useState("");
 
@@ -70,7 +94,9 @@ const Payment = () => {
     booking.venue ||
     "";
 
-  const quantity = Number(booking.quantity ?? booking.seats ?? 1);
+  const quantity = Number(
+    booking.quantity ?? booking.seats ?? 1
+  );
 
   const unitPrice = Number(
     booking.price ??
@@ -80,7 +106,6 @@ const Payment = () => {
         : NaN)
   );
 
-  // Backend calculates totalAmount using price * quantity.
   const totalAmount = unitPrice * quantity;
 
   // ================= DATE FORMAT =================
@@ -107,17 +132,11 @@ const Payment = () => {
 
     if (!token) {
       setError("Please login first.");
-      navigate("/login");
+      navigate("/Login");
       return;
     }
 
-    if (
-      !eventTitle ||
-      !userName ||
-      !email ||
-      !eventDate ||
-      !eventLocation
-    ) {
+    if (!eventTitle || !userName || !email || !eventDate || !eventLocation) {
       setError(
         "Booking details incomplete hain. Event, date, location aur user details check karein."
       );
@@ -128,7 +147,7 @@ const Payment = () => {
       !Number.isInteger(quantity) ||
       quantity < 1 ||
       !Number.isFinite(unitPrice) ||
-      unitPrice < 0 ||
+      unitPrice <= 0 ||
       !Number.isFinite(totalAmount)
     ) {
       setError("Seats aur ticket amount valid nahi hain.");
@@ -141,21 +160,19 @@ const Payment = () => {
     }
 
     if (!paymentMethod) {
-      setError("Please select payment method.");
+      setError("Please select UPI or Card.");
       return;
     }
 
     setLoading(true);
 
     try {
-      let bookingDocument = savedBooking;
-
       // ==========================================
       // STEP 1: CREATE BOOKING
       // ==========================================
 
-      // If booking was already saved during an earlier attempt,
-      // reuse it instead of creating a duplicate booking.
+      let bookingDocument = savedBooking;
+
       if (!bookingDocument) {
         const bookingPayload = {
           userName: userName.trim(),
@@ -178,15 +195,13 @@ const Payment = () => {
 
         bookingDocument =
           bookingResponse.data?.data ||
-          bookingResponse.data?.booking;
+          bookingResponse.data?.booking ||
+          bookingResponse.data;
 
-        if (
-          bookingResponse.data?.success !== true ||
-          !bookingDocument?._id
-        ) {
+        if (!bookingDocument?._id) {
           throw new Error(
             bookingResponse.data?.message ||
-              "Booking database mein save nahi hui."
+            "Booking database mein save nahi hui."
           );
         }
 
@@ -199,112 +214,207 @@ const Payment = () => {
       }
 
       // ==========================================
-      // STEP 2: CREATE PAYMENT RECORD
+      // STEP 2: LOAD RAZORPAY CHECKOUT
       // ==========================================
 
-      let paymentDocument = null;
+      const scriptLoaded = await loadRazorpayScript();
 
-      try {
-        const paymentResponse = await addPayment({
-          bookingId: bookingDocument._id,
-          paymentMethod,
-          description: "Payment initiated from Eventza checkout.",
-        });
-
-        paymentDocument = paymentResponse.data?.payment;
-
-        if (
-          paymentResponse.data?.success !== true ||
-          !paymentDocument?._id
-        ) {
-          throw new Error(
-            paymentResponse.data?.message ||
-              "Payment database mein save nahi hui."
-          );
-        }
-      } catch (paymentError) {
-        // If a previous request already created the payment,
-        // retrieve that existing record instead of creating another.
-        if (paymentError.response?.status === 409) {
-          const existingResponse = await getBookingPayments(
-            bookingDocument._id
-          );
-
-          const existingPayments =
-            existingResponse.data?.payments || [];
-
-          paymentDocument = existingPayments[0] || null;
-        }
-
-        if (!paymentDocument?._id) {
-          throw paymentError;
-        }
+      if (!scriptLoaded || !window.Razorpay) {
+        throw new Error(
+          "Razorpay checkout load nahi hua. Internet connection check karein."
+        );
       }
 
-      setSavedPayment(paymentDocument);
-
       // ==========================================
-      // STEP 3: UPDATE CONFIRMATION DETAILS
+      // STEP 3: CREATE RAZORPAY ORDER
       // ==========================================
 
-      const updatedBooking = {
-        ...bookingDocument,
+      const orderResponse = await createPaymentOrder({
+        bookingId: bookingDocument._id,
+        paymentMethod,
+      });
 
-        id: bookingDocument.bookingId || bookingDocument._id,
+      const orderData = orderResponse.data;
 
-        eventName: bookingDocument.eventTitle,
-        userEmail: bookingDocument.email,
-        seats: bookingDocument.quantity,
-        amount: bookingDocument.totalAmount,
+      if (
+        !orderData?.success ||
+        !orderData?.order?.id ||
+        !orderData?.key
+      ) {
+        throw new Error(
+          orderData?.message || "Razorpay order create nahi hua."
+        );
+      }
 
-        paymentMethod: paymentDocument.paymentMethod,
-        paymentStatus: paymentDocument.paymentStatus,
+      // ==========================================
+      // STEP 4: OPEN RAZORPAY CHECKOUT
+      // ==========================================
 
-        paymentId: paymentDocument._id,
-        transactionId: paymentDocument.transactionId,
+      const options = {
+        key: orderData.key,
 
-        paymentDate: paymentDocument.createdAt
-          ? new Date(paymentDocument.createdAt).toLocaleString()
-          : new Date().toLocaleString(),
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+
+        name: "Eventzaa",
+        description: `Payment for ${eventTitle}`,
+
+        order_id: orderData.order.id,
+
+        prefill: {
+          name: userName,
+          email: email,
+          contact: customer.phone || booking.phone || "",
+        },
+
+        notes: {
+          bookingId: String(bookingDocument._id),
+        },
+
+        theme: {
+          color: "#5b4bdb",
+        },
+
+        handler: async function (response) {
+          try {
+            setError("");
+
+            // ======================================
+            // STEP 5: VERIFY PAYMENT ON BACKEND
+            // ======================================
+
+            const verifyResponse = await verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+
+            const verification = verifyResponse.data;
+
+            if (!verification?.success) {
+              throw new Error(
+                verification?.message ||
+                "Payment verification failed."
+              );
+            }
+
+            const paymentDocument = verification.payment;
+
+            const confirmedBooking =
+              verification.booking || bookingDocument;
+
+            if (!paymentDocument) {
+              throw new Error(
+                "Payment verified, but payment details were not returned."
+              );
+            }
+
+            // ======================================
+            // STEP 6: UPDATE CONFIRMED BOOKING
+            // ======================================
+
+            const updatedBooking = {
+              ...confirmedBooking,
+
+              id: confirmedBooking._id,
+
+              eventName:
+                confirmedBooking.eventTitle || eventTitle,
+
+              userEmail:
+                confirmedBooking.email || email,
+
+              seats:
+                confirmedBooking.quantity || quantity,
+
+              amount:
+                confirmedBooking.totalAmount ?? totalAmount,
+
+              paymentMethod: paymentDocument.paymentMethod,
+
+              paymentStatus: paymentDocument.paymentStatus,
+
+              paymentId: paymentDocument._id,
+
+              transactionId: paymentDocument.transactionId,
+
+              status: confirmedBooking.status || "Confirmed",
+
+              paymentDate: paymentDocument.paymentDate
+                ? new Date(
+                    paymentDocument.paymentDate
+                  ).toLocaleString()
+                : new Date().toLocaleString(),
+            };
+
+            setSavedPayment(paymentDocument);
+            setPaidBooking(updatedBooking);
+            setPaymentCompleted(true);
+
+            localStorage.setItem(
+              "latestBooking",
+              JSON.stringify(updatedBooking)
+            );
+
+            localStorage.setItem(
+              "latestPayment",
+              JSON.stringify(paymentDocument)
+            );
+
+            const oldBookings = JSON.parse(
+              localStorage.getItem("bookings") || "[]"
+            );
+
+            const otherBookings = Array.isArray(oldBookings)
+              ? oldBookings.filter(
+                  (item) =>
+                    String(item._id) !==
+                    String(updatedBooking._id)
+                )
+              : [];
+
+            localStorage.setItem(
+              "bookings",
+              JSON.stringify([
+                ...otherBookings,
+                updatedBooking,
+              ])
+            );
+          } catch (verificationError) {
+            console.error(
+              "Payment verification error:",
+              verificationError
+            );
+
+            setError(
+              verificationError.response?.data?.message ||
+              verificationError.message ||
+              "Payment verification failed. Please contact support."
+            );
+          } finally {
+            setLoading(false);
+          }
+        },
+
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+          },
+        },
       };
 
-      // ==========================================
-      // STEP 4: SAVE LOCAL DISPLAY DATA
-      // ==========================================
+      const razorpayInstance = new window.Razorpay(options);
 
-      localStorage.setItem(
-        "latestBooking",
-        JSON.stringify(updatedBooking)
-      );
+      razorpayInstance.on("payment.failed", function (response) {
+        setError(
+          response.error?.description ||
+          "Payment failed. Please try again."
+        );
 
-      localStorage.setItem(
-        "latestPayment",
-        JSON.stringify(paymentDocument)
-      );
+        setLoading(false);
+      });
 
-      const oldBookings = JSON.parse(
-        localStorage.getItem("bookings") || "[]"
-      );
-
-      const otherBookings = Array.isArray(oldBookings)
-        ? oldBookings.filter(
-            (item) =>
-              item._id !== bookingDocument._id &&
-              item.bookingId !== bookingDocument.bookingId
-          )
-        : [];
-
-      localStorage.setItem(
-        "bookings",
-        JSON.stringify([...otherBookings, updatedBooking])
-      );
-
-      // ==========================================
-      // STEP 5: SHOW CONFIRMATION
-      // ==========================================
-
-      setPaidBooking(updatedBooking);
-      setPaymentCompleted(true);
+      razorpayInstance.open();
     } catch (err) {
       console.error(
         "Booking/payment error:",
@@ -313,10 +423,10 @@ const Payment = () => {
 
       setError(
         err.response?.data?.message ||
-          err.message ||
-          "Booking/payment save nahi hua. Backend aur API check karein."
+        err.message ||
+        "Booking/payment save nahi hua."
       );
-    } finally {
+
       setLoading(false);
     }
   };
@@ -352,39 +462,33 @@ const Payment = () => {
           </div>
         )}
 
-        {/* ================= SUCCESS / CONFIRMATION ================= */}
+        {/* SUCCESS */}
 
         {paymentCompleted ? (
           <div style={styles.successPanel}>
             <div style={styles.successIcon}>✓</div>
 
-            <h2>Booking Created Successfully</h2>
+            <h2>Payment Successful!</h2>
 
             <p style={styles.successText}>
-              Your booking and payment record have been saved in Eventza.
+              Your booking and payment have been confirmed.
             </p>
 
             <div style={styles.bill}>
               <h3>Booking / Payment Bill</h3>
 
-              <Detail
-                label="Customer Name"
-                value={paidBooking?.userName}
-              />
+              <Detail label="Customer Name" value={paidBooking?.userName} />
 
               <Detail
                 label="Phone Number"
                 value={customer.phone || booking.phone || "Not provided"}
               />
 
-              <Detail
-                label="Email Address"
-                value={paidBooking?.email}
-              />
+              <Detail label="Email Address" value={paidBooking?.email} />
 
               <Detail
                 label="Booking ID"
-                value={paidBooking?.bookingId || paidBooking?._id}
+                value={paidBooking?._id}
               />
 
               <Detail
@@ -428,7 +532,7 @@ const Payment = () => {
                 <strong style={styles.amount}>
                   ₹
                   {Number(
-                    paidBooking?.totalAmount || 0
+                    savedPayment?.amount || totalAmount
                   ).toLocaleString("en-IN")}
                 </strong>
               </div>
@@ -437,11 +541,6 @@ const Payment = () => {
                 label="Payment Date"
                 value={paidBooking?.paymentDate}
               />
-            </div>
-
-            <div style={styles.pendingNotice}>
-              Payment record saved. Payment is pending verification.
-              This demo checkout does not process real UPI or card payments.
             </div>
 
             <button
@@ -470,35 +569,16 @@ const Payment = () => {
           </div>
         ) : (
           <>
-            {/* ================= BOOKING DETAILS ================= */}
+            {/* BOOKING DETAILS */}
 
             <div style={styles.bookingCard}>
               <h3>Booking Details</h3>
 
-              <Detail
-                label="Event Name"
-                value={eventTitle || "Not selected"}
-              />
-
-              <Detail
-                label="User Name"
-                value={userName || "Not available"}
-              />
-
-              <Detail
-                label="Email"
-                value={email || "Not available"}
-              />
-
-              <Detail
-                label="Seats"
-                value={quantity}
-              />
-
-              <Detail
-                label="Event Location"
-                value={eventLocation || "Not available"}
-              />
+              <Detail label="Event Name" value={eventTitle} />
+              <Detail label="User Name" value={userName} />
+              <Detail label="Email" value={email} />
+              <Detail label="Seats" value={quantity} />
+              <Detail label="Event Location" value={eventLocation} />
 
               <div style={styles.detailRow}>
                 <span>Total Amount</span>
@@ -512,7 +592,7 @@ const Payment = () => {
               </div>
             </div>
 
-            {/* ================= PAYMENT FORM ================= */}
+            {/* PAYMENT METHOD */}
 
             <form onSubmit={handlePayment}>
               <h3 style={styles.paymentTitle}>
@@ -529,7 +609,6 @@ const Payment = () => {
                     setPaymentMethod(e.target.value)
                   }
                 />
-
                 <span>📱 UPI</span>
               </label>
 
@@ -543,35 +622,12 @@ const Payment = () => {
                     setPaymentMethod(e.target.value)
                   }
                 />
-
                 <span>💳 Debit / Credit Card</span>
               </label>
 
-              <label style={styles.option}>
-                <input
-                  type="radio"
-                  name="payment"
-                  value="Cash"
-                  checked={paymentMethod === "Cash"}
-                  onChange={(e) =>
-                    setPaymentMethod(e.target.value)
-                  }
-                />
-
-                <span>💵 Cash</span>
-              </label>
-
-              {paymentMethod && (
-                <div style={styles.cashMessage}>
-                  {paymentMethod === "Cash"
-                    ? "Pay the amount at the event counter. Payment status will remain Pending."
-                    : `${paymentMethod} demo checkout selected. No real payment will be processed. Payment status will remain Pending.`}
-                </div>
-              )}
-
               <p style={styles.demoNote}>
-                Demo checkout only. Real payment gateway is not connected.
-                Do not enter or share real card details, CVV or UPI PIN.
+                Secure payment is processed through Razorpay Checkout.
+                Never share your UPI PIN, card PIN or OTP with anyone.
               </p>
 
               <button
@@ -583,12 +639,8 @@ const Payment = () => {
                 disabled={loading}
               >
                 {loading
-                  ? "Saving Booking & Payment..."
-                  : `Confirm Booking · ₹${
-                      Number.isFinite(totalAmount)
-                        ? totalAmount
-                        : 0
-                    }`}
+                  ? "Opening Secure Payment..."
+                  : `Pay ₹${totalAmount.toLocaleString("en-IN")}`}
               </button>
             </form>
           </>
@@ -603,7 +655,6 @@ const Payment = () => {
 const Detail = ({ label, value }) => (
   <div style={styles.detailRow}>
     <span>{label}</span>
-
     <strong>
       {value == null || value === "" ? "—" : value}
     </strong>
@@ -704,17 +755,6 @@ const styles = {
     textAlign: "left",
   },
 
-  pendingNotice: {
-    background: "#fff8e1",
-    border: "1px solid #ffe082",
-    color: "#795900",
-    padding: "13px",
-    borderRadius: "8px",
-    marginBottom: "15px",
-    fontSize: "14px",
-    lineHeight: 1.5,
-  },
-
   printButton: {
     width: "100%",
     padding: "14px",
@@ -762,15 +802,6 @@ const styles = {
     cursor: "pointer",
     fontSize: "16px",
     fontWeight: "500",
-  },
-
-  cashMessage: {
-    background: "#fff8e1",
-    border: "1px solid #ffe082",
-    padding: "15px",
-    borderRadius: "8px",
-    marginBottom: "15px",
-    lineHeight: 1.5,
   },
 
   demoNote: {
